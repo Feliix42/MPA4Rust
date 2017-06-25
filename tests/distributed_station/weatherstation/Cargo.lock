@@ -1,0 +1,19 @@
+[root]
+name = "weatherstation"
+version = "0.1.0"
+dependencies = [
+ "base_station 0.1.0",
+ "weather 0.1.0",
+]
+
+[[package]]
+name = "base_station"
+version = "0.1.0"
+dependencies = [
+ "weather 0.1.0",
+]
+
+[[package]]
+name = "weather"
+version = "0.1.0"
+

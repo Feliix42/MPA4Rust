@@ -1,5 +1,5 @@
 [package]
-name = "channelscanner"
+name = "weather"
 version = "0.1.0"
 authors = ["Felix Wittwer <dev@felixwittwer.de>"]
 
