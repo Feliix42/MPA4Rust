@@ -5,16 +5,25 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/CommandLine.h"
 
 int main(int argc, char** argv) {
-    if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " [IR-File] [function]" << std::endl;
+    // parse command line arguments
+    llvm::cl::ParseCommandLineOptions(argc, argv);
+    llvm::cl::opt<std::string> IRFile(llvm::cl::Positional, llvm::cl::desc("<IR file>"), llvm::cl::Required);
+    llvm::cl::opt<std::string> EntryFunction(llvm::cl::Positional, llvm::cl::desc("<entry point (function name)>"), llvm::cl::Required);
+    
+    // check if required options are present
+    if( IRFile.length() == 0 || EntryFunction.length() == 0) {
+        llvm::cl::PrintHelpMessage();
         return 1;
     }
+    
+    // convert options
+    llvm::StringRef path = llvm::StringRef(IRFile);
+    llvm::StringRef fn_name = llvm::StringRef(EntryFunction);
 
-    llvm::StringRef path = llvm::StringRef(argv[1]);
-    llvm::StringRef fn_name = llvm::StringRef(argv[2]);
-
+    
     // TODO (feliix42): Validate Arguments
 
     // TODO: Load IR file (multiple?)
@@ -24,7 +33,7 @@ int main(int argc, char** argv) {
     std::unique_ptr<llvm::Module> module = llvm::parseIRFile(path, err, context);
 
     if (!module) {
-        std::cout << "Ouch! Couldn't read the IR file:" << std::endl;
+        std::cout << "[ERROR] Ouch! Couldn't read the IR file." << std::endl;
         // TODO: do some more error handling ( == printing)
         return 1;
     }
