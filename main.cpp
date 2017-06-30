@@ -10,11 +10,11 @@
 int main(int argc, char** argv) {
     // parse command line arguments
     llvm::cl::ParseCommandLineOptions(argc, argv);
-    llvm::cl::opt<std::string> IRFile(llvm::cl::Positional, llvm::cl::desc("<IR file>"), llvm::cl::Required);
+    llvm::cl::opt<std::string> IRFile(llvm::cl::Positional, llvm::cl::desc("<IR file(s)>"), llvm::cl::Required);
     llvm::cl::opt<std::string> EntryFunction(llvm::cl::Positional, llvm::cl::desc("<entry point (function name)>"), llvm::cl::Required);
     
     // check if required options are present
-    if( IRFile.length() == 0 || EntryFunction.length() == 0) {
+    if (IRFile.length() == 0 || EntryFunction.length() == 0) {
         llvm::cl::PrintHelpMessage();
         return 1;
     }
@@ -35,6 +35,7 @@ int main(int argc, char** argv) {
     if (!module) {
         std::cout << "[ERROR] Ouch! Couldn't read the IR file." << std::endl;
         // TODO: do some more error handling ( == printing)
+        // skip malformed IR Files, emit a note about that.
         return 1;
     }
 
