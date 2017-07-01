@@ -1,3 +1,4 @@
+#include <forward_list>
 #include <iostream>
 #include <memory>
 #include "llvm/Support/SourceMgr.h"
@@ -6,30 +7,48 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/CommandLine.h"
+#include <sys/stat.h>
+
+
+std::forward_list<llvm::StringRef> scan_directory(std::string path) {
+    return std::forward_list<llvm::StringRef>::forward_list();
+}
+
 
 int main(int argc, char** argv) {
     // parse command line arguments
+    llvm::cl::opt<std::string> IRPath(llvm::cl::Positional, llvm::cl::desc("<IR file or directory>"), llvm::cl::Required);
     llvm::cl::ParseCommandLineOptions(argc, argv);
-    llvm::cl::opt<std::string> IRFile(llvm::cl::Positional, llvm::cl::desc("<IR file(s)>"), llvm::cl::Required);
-    llvm::cl::opt<std::string> EntryFunction(llvm::cl::Positional, llvm::cl::desc("<entry point (function name)>"), llvm::cl::Required);
     
-    // check if required options are present
-    if (IRFile.length() == 0 || EntryFunction.length() == 0) {
-        llvm::cl::PrintHelpMessage();
+    // TODO (feliix42): Validate Arguments
+    
+    // check if the path is valid and if it describes a file or directory
+    std::forward_list<llvm::StringRef> file_list {};
+    struct stat s;
+    if (stat(IRPath.c_str(), &s) == 0) {
+        if (s.st_mode & S_IFREG) {
+            // path specifies valid file
+            file_list.push_front(llvm::StringRef(IRPath));
+        } else if (s.st_mode & S_IFDIR) {
+            // path specifies a directory
+            file_list = scan_directory(IRPath);
+            // TODO: Implement!
+        } else {
+            std::cout << "[ERROR] The path provided does not appear to be a directory, nor a file." << std::endl;
+            return 1;
+        }
+    } else {
+        std::cout << "[ERROR] The path provided seems to be invalid." << std::endl;
         return 1;
     }
     
-    // convert options
-    llvm::StringRef path = llvm::StringRef(IRFile);
-    llvm::StringRef fn_name = llvm::StringRef(EntryFunction);
-
-    
-    // TODO (feliix42): Validate Arguments
 
     // TODO: Load IR file (multiple?)
     // TODO: Catch errors returned in SMDiagnostic!
     llvm::SMDiagnostic err = llvm::SMDiagnostic();
     llvm::LLVMContext context; // = llvm::LLVMContext();
+    
+    // TODO: Load all modules in data structure
     std::unique_ptr<llvm::Module> module = llvm::parseIRFile(path, err, context);
 
     if (!module) {
@@ -38,16 +57,6 @@ int main(int argc, char** argv) {
         // skip malformed IR Files, emit a note about that.
         return 1;
     }
-
-
-    // TODO: find entry point
-    // verify the entry point exists
-    llvm::Function* entry_point = module->getFunction(fn_name);
-    if (!entry_point) {
-        std::cout << "[ERROR] Specified function `" << fn_name.str() << "`not found. Exiting..." << std::endl;
-    }
-
-    // TODO: *Maybe* take set of settings (variable bindings etc)?
 
 
     return 0;
