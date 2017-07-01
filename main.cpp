@@ -9,55 +9,67 @@
 #include "llvm/Support/CommandLine.h"
 #include <sys/stat.h>
 
+using namespace llvm;
 
-std::forward_list<llvm::StringRef> scan_directory(std::string path) {
-    return std::forward_list<llvm::StringRef>::forward_list();
+std::forward_list<StringRef> scan_directory(const char* path) {
+    // TODO: Implement!
+    return std::forward_list<StringRef>::forward_list();
 }
 
 
 int main(int argc, char** argv) {
-    // parse command line arguments
-    llvm::cl::opt<std::string> IRPath(llvm::cl::Positional, llvm::cl::desc("<IR file or directory>"), llvm::cl::Required);
-    llvm::cl::ParseCommandLineOptions(argc, argv);
+    // set up the command line argument parser; hide automatically included options
+    cl::OptionCategory AnalyzerCategory("Runtime Options", "Options for manipulating the runtime options of the program.");
+    cl::opt<std::string> IRPath(cl::Positional, cl::desc("<IR file or directory>"), cl::Required);
+    cl::opt<int> ThreadCount("t", cl::desc("Number of threads to use for calculation"), cl::cat(AnalyzerCategory));
+    
+    cl::HideUnrelatedOptions(AnalyzerCategory);
+    cl::ParseCommandLineOptions(argc, argv);
     
     // TODO (feliix42): Validate Arguments
-    
-    // check if the path is valid and if it describes a file or directory
-    std::forward_list<llvm::StringRef> file_list {};
+    std::forward_list<StringRef> file_list {};
     struct stat s;
+    // check if the path is valid and if it describes a file or directory
     if (stat(IRPath.c_str(), &s) == 0) {
         if (s.st_mode & S_IFREG) {
             // path specifies valid file
-            file_list.push_front(llvm::StringRef(IRPath));
-        } else if (s.st_mode & S_IFDIR) {
+            file_list.push_front(StringRef(IRPath));
+        }
+        else if (s.st_mode & S_IFDIR) {
             // path specifies a directory
-            file_list = scan_directory(IRPath);
-            // TODO: Implement!
-        } else {
-            std::cout << "[ERROR] The path provided does not appear to be a directory, nor a file." << std::endl;
+            file_list = scan_directory(IRPath.c_str());
+        }
+        else {
+            std::cerr << "[ERROR] The path provided does not appear to be a directory, nor a file." << std::endl;
             return 1;
         }
-    } else {
-        std::cout << "[ERROR] The path provided seems to be invalid." << std::endl;
+    }
+    else {
+        std::cerr << "[ERROR] The path provided seems to be invalid." << std::endl;
         return 1;
     }
     
 
-    // TODO: Load IR file (multiple?)
     // TODO: Catch errors returned in SMDiagnostic!
-    llvm::SMDiagnostic err = llvm::SMDiagnostic();
-    llvm::LLVMContext context; // = llvm::LLVMContext();
+    SMDiagnostic err = SMDiagnostic();
+    LLVMContext context;
+    std::forward_list<std::unique_ptr<Module>> module_list {};
     
     // TODO: Load all modules in data structure
-    std::unique_ptr<llvm::Module> module = llvm::parseIRFile(path, err, context);
-
-    if (!module) {
-        std::cout << "[ERROR] Ouch! Couldn't read the IR file." << std::endl;
-        // TODO: do some more error handling ( == printing)
-        // skip malformed IR Files, emit a note about that.
-        return 1;
+    //       -> separate structures for threading support?
+    for (StringRef path: file_list) {
+        std::unique_ptr<Module> mod = parseIRFile(path, err, context);
+        if (!mod) {
+            std::cerr << "[ERROR] Ouch! Couldn't read the IR file `" << path.str() << "`" << std::endl;
+            // TODO: do some more error handling ( == printing)
+            // skip malformed IR Files, emit a note about that.
+        }
+        else {
+            module_list.push_front(mod);
+        }
     }
 
+    // TODO: Implement scanning (and matching) --> Threading?
 
     return 0;
 }
