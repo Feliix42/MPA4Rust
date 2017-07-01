@@ -1,20 +1,26 @@
 CXX=clang++
-CXXFLAGS=`llvm-config --cxxflags`
+LD=clang++
+CXXFLAGS=`llvm-config --cxxflags` -g
 LDFLAGS=`llvm-config --ldflags`
 LLVMLIBS=`llvm-config --system-libs --libs`
 
-.PHONY: all clean
+MAIN = rmpa
+SRCS = main.cpp
+OBJS = $(SRCS:.cpp=.o)
 
-# .cpp.o: 
-# 	${CXX} ${CXXFLAGS} ${CXX_EXTRA} -c -o $@ $<
+.PHONY: all clean debug
+
+all: ${OBJS}
+	${CXX} ${CXXFLAGS} -o ${MAIN} ${OBJS} ${LDFLAGS} ${LLVMLIBS}
+
+
+.cpp.o: 
+	${CXX} ${CXXFLAGS} -c $< -o $@
 
 # myprog: ${OBJECTS}
 #     ${LD} ${LDFLAGS} -o $@ ${OBJECTS} ${LIBS}
 
-all:
-	${CXX} ${CXXFLAGS} ${LDFLAGS} ${LLVMLIBS} -g -o main main.cpp
-
 clean:
-	rm -rf ./main
+	$(RM) *.o *~ $(MAIN)
 
 

@@ -1,5 +1,7 @@
 *.dSYM
-/main
+/rmpa
+.idea/
+CMakeLists.txt
 
 ### Rust ###
 target/
