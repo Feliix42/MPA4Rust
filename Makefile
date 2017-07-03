@@ -5,7 +5,7 @@ LDFLAGS=`llvm-config --ldflags`
 LLVMLIBS=`llvm-config --system-libs --libs`
 
 MAIN = rmpa
-SRCS = main.cpp
+SRCS = main.cpp scanner.cpp
 OBJS = $(SRCS:.cpp=.o)
 
 .PHONY: all clean debug

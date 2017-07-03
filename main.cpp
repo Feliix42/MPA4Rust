@@ -1,13 +1,4 @@
-#include <forward_list>
-#include <iostream>
-#include <memory>
-#include "llvm/Support/SourceMgr.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IRReader/IRReader.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/Support/CommandLine.h"
-#include <sys/stat.h>
+#include "main.hpp"
 
 using namespace llvm;
 
@@ -60,16 +51,18 @@ int main(int argc, char** argv) {
     for (StringRef path: file_list) {
         std::unique_ptr<Module> mod = parseIRFile(path, err, context);
         if (!mod) {
-            std::cerr << "[ERROR] Ouch! Couldn't read the IR file `" << path.str() << "`" << std::endl;
+            std::cerr << "[ERROR] Couldn't read the IR file `" << path.str() << "`:" << std::endl;
+            err.print("IR File Loader", errs());
             // TODO: do some more error handling ( == printing)
             // skip malformed IR Files, emit a note about that.
         }
         else {
-            module_list.push_front(mod);
+            module_list.push_front(std::move(mod));
         }
     }
-
-    // TODO: Implement scanning (and matching) --> Threading?
+    
+    // TODO: Maybe rewrite as LLVM Pass?
+    //       Implement scanning (and matching) --> Threading?
 
     return 0;
 }
