@@ -63,6 +63,9 @@ int main(int argc, char** argv) {
     
     // TODO: Maybe rewrite as LLVM Pass?
     //       Implement scanning (and matching) --> Threading?
+    
+    // TODO: Use the return values.
+    scan_modules(std::move(module_list));
 
     return 0;
 }
