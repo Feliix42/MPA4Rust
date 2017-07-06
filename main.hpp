@@ -6,6 +6,12 @@
 #include <memory>
 #include <sys/stat.h>
 
+// Boost Filesystem interaction
+#define BOOST_FILESYSTEM_VERSION 3
+#define BOOST_FILESYSTEM_NO_DEPRECATED
+#include <boost/filesystem.hpp>
+
+
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/LLVMContext.h"

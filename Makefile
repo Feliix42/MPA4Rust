@@ -1,7 +1,7 @@
 CXX=clang++
 LD=clang++
 CXXFLAGS=`llvm-config --cxxflags` -g
-LDFLAGS=`llvm-config --ldflags`
+LDFLAGS=`llvm-config --ldflags` -lboost_filesystem -lboost_system
 LLVMLIBS=`llvm-config --system-libs --libs`
 
 MAIN = rmpa

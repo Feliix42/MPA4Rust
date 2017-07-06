@@ -1,10 +1,28 @@
 #include "main.hpp"
 
 using namespace llvm;
+namespace fs = ::boost::filesystem;
 
-std::forward_list<StringRef> scan_directory(const char* path) {
-    // TODO: Implement!
-    return std::forward_list<StringRef>::forward_list();
+std::forward_list<std::string> scan_directory(const fs::path& root) {
+    std::forward_list<std::string> files = {};
+    
+    if(!fs::exists(root) || !fs::is_directory(root)) {
+        std::cerr << "[ERROR] Path is not a directory but directory traversal was issued." << std::endl;
+        return files;
+    }
+    
+    fs::recursive_directory_iterator it(root);
+    fs::recursive_directory_iterator endit;
+    
+    while(it != endit) {
+        if(fs::is_regular_file(*it) && it->path().extension() == ".ll") {
+            std::cout << "got: " << it->path().string() << std::endl;
+            files.push_front(it->path().string());
+        }
+        ++it;
+    }
+    
+    return files;
 }
 
 
@@ -18,7 +36,7 @@ int main(int argc, char** argv) {
     cl::ParseCommandLineOptions(argc, argv);
     
     // TODO (feliix42): Validate Arguments
-    std::forward_list<StringRef> file_list {};
+    std::forward_list<std::string> file_list {};
     struct stat s;
     // check if the path is valid and if it describes a file or directory
     if (stat(IRPath.c_str(), &s) == 0) {
@@ -48,10 +66,10 @@ int main(int argc, char** argv) {
     
     // TODO: Load all modules in data structure
     //       -> separate structures for threading support?
-    for (StringRef path: file_list) {
-        std::unique_ptr<Module> mod = parseIRFile(path, err, context);
+    for (std::string path: file_list) {
+        std::unique_ptr<Module> mod = parseIRFile(StringRef(path), err, context);
         if (!mod) {
-            std::cerr << "[ERROR] Couldn't read the IR file `" << path.str() << "`:" << std::endl;
+            std::cerr << "[ERROR] Couldn't read the IR file `" << path << "`. Skipping..." << std::endl;
             err.print("IR File Loader", errs());
             // TODO: do some more error handling ( == printing)
             // skip malformed IR Files, emit a note about that.

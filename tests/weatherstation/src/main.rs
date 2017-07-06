@@ -12,6 +12,8 @@ fn main() {
     let msg = Weather::Cloudy;
     let _ = weather_sender.send(msg);
 
+    let _ = weather_sender.send(Weather::Cloudy);
+
     let mut input = String::new();
     let _ = io::stdin().read_line(&mut input);
 }
