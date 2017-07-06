@@ -39,6 +39,7 @@ int main(int argc, char** argv) {
     std::forward_list<std::string> file_list {};
     struct stat s;
     // check if the path is valid and if it describes a file or directory
+    // TODO: Might be worth a rewrite using boost
     if (stat(IRPath.c_str(), &s) == 0) {
         if (s.st_mode & S_IFREG) {
             // path specifies valid file

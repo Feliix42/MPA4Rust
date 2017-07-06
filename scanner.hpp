@@ -4,7 +4,17 @@
 #include <tuple>
 #include <forward_list>
 
+// just for io stuff
+#include <iostream>
+#include "llvm/Support/raw_ostream.h"
+
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/Support/Casting.h"
+
+// name demangling
+#include "llvm/Demangle/Demangle.h"
 
 
 struct ProgramNode {
