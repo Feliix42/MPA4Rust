@@ -1,0 +1,10 @@
+[package]
+name = "weatherstation"
+version = "0.1.0"
+authors = ["Felix Wittwer <dev@felixwittwer.de>"]
+
+[dependencies]
+ipc-channel = "0.8"
+weather = {path = "../weather"}
+base_station = {path = "../base-station"}
+
