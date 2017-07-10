@@ -32,32 +32,41 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
     std::forward_list<MessagingNode> recvs {};
 
     // Iterate through all functions through all basic blocks over every instruction within the module
-//    std::cout << "[INFO] Checking module " << module->getName().str() << std::endl;
     for (Function& func: module->getFunctionList()) {
-//        std::cout << std::endl << "[INFO] Checking function " << func.getName().str() << std::endl;
         for (BasicBlock& bb: func.getBasicBlockList()) {
             for (Instruction& instr: bb.getInstList()) {
                 if (InvokeInst* ii = dyn_cast<InvokeInst>(&instr)) {
-//                    ii->print(outs());
-//                    std::cout << std::endl;
 
                     // check if it's an direct function invocation that has a name
                     if (ii->getCalledFunction() && ii->getCalledFunction()->hasName()) {
                         // compare the demangled function name to find out whether it's a send or recv
-                        std::string demangled_name = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, nullptr);
+                        int s;
+                        const char* demangled_name = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
+                        if (s != 0)
+                            break;
                         if (isSend(demangled_name)) {
                             /* Debug Section */
                             std::cout << std::endl;
                             std::cout << "[INFO] Current Module: " << ii->getModule()->getName().str() << std::endl;
                             std::cout << "[INFO] Hit `send` in function " << ii->getFunction()->getName().str() << std::endl;
                             std::cout << "  Called Function: " << ii->getCalledFunction()->getName().str() << std::endl;
-                            std::cout << "  Demangled: " << demangled_name << std::endl;
+                            if (demangled_name)
+                                std::cout << "  Demangled: " << demangled_name << std::endl;
 
                             for (Argument& arg: ii->getCalledFunction()->getArgumentList()) {
-                                arg.print(outs());
-                                std::cout << std::endl;
+                                // check if argument is a PointerType (which is the case for the Sender/Receiver structs.
+                                if (isa<PointerType>(arg.getType()))
+                                    std::cout << dyn_cast<PointerType>(arg.getType())->getElementType()->getStructName().str();
+                                else
+                                    arg.getType()->print(outs());
+
+                                std::cout << "  -- " << arg.getArgNo() << std::endl;
                             }
                             std::cout << std::endl;
+
+
+                            /* Where the magic will happen */
+                            sends.push_front(MessagingNode {ii, ""});
                         }
                         else if (isRecv(demangled_name)) {
                             /* Debug Section */
@@ -67,15 +76,21 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                             std::cout << "  Demangled: " << demangled_name << std::endl;
 
                             for (Argument& arg: ii->getCalledFunction()->getArgumentList()) {
-                                arg.print(outs());
-                                std::cout << std::endl;
+                                // check if argument is a PointerType (which is the case for the Sender/Receiver structs.
+                                if (isa<PointerType>(arg.getType()))
+                                    std::cout << dyn_cast<PointerType>(arg.getType())->getElementType()->getStructName().str();
+                                else
+                                    arg.getType()->print(outs());
+
+                                std::cout << "  -- " << arg.getArgNo() << std::endl;
                             }
                             std::cout << std::endl;
+
+                            /* Where the magic will happen */
+                            recvs.push_front(MessagingNode {ii, ""});
                         }
                         // TODO: Difference between recv and try_recv?
                     }
-
-//                    std::cout << std::endl << std::endl;
                 }
             }
         }

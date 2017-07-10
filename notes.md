@@ -120,3 +120,13 @@ Example of a [**`try_recv`**](https://docs.rs/ipc-channel/0.8.0/ipc_channel/ipc/
 | Arguments | `%"core::result::Result<ControlMessage, alloc::boxed::Box<bincode::internal::ErrorKind>>"* %0` <br /> `%"ipc_channel::ipc::IpcReceiver<ControlMessage>"* %1` |
 
 
+## Consequences
+
+To find a send/recv, check the demangled function names and compare them to a substring of the demangled names displayed above. Remember that you might have to **handle `recv` and `try_recv` differently**.
+
+
+As it seems, the `Sender` or `Receiver` is always passed as an argument to the function, but unfortunately there is no convention as to which position it has.
+
+The most logical (and easy) thing to do seems to be to get the Pointer to the type from the _argument list_, dereference it, get the struct name and store it as "type information" in a string.
+To find the correct argument, search all arguments until you find one matching a string like `ipc_channel::ipc::IpcReceiver<`.
+
