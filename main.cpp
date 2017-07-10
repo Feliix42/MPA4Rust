@@ -55,7 +55,9 @@ int main(int argc, char** argv) {
         }
         else if (s.st_mode & S_IFDIR) {
             // path specifies a directory
+            std::cout << "[INFO] Reading directory." << std::endl;
             file_list = scan_directory(IRPath.c_str());
+
         }
         else {
             std::cerr << "[ERROR] The path provided does not appear to be a directory, nor a file." << std::endl;
@@ -67,12 +69,14 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // TODO: Do this in threads?
 
     // TODO: Catch errors returned in SMDiagnostic!
     SMDiagnostic err = SMDiagnostic();
     LLVMContext context;
     std::forward_list<std::unique_ptr<Module>> module_list {};
 
+    std::cout << "[INFO] Loading modules..." << std::endl;
     // TODO: Load all modules in data structure
     //       -> separate structures for threading support?
     for (std::string path: file_list) {
@@ -91,7 +95,8 @@ int main(int argc, char** argv) {
     //       Implement scanning (and matching) --> Threading?
 
     // TODO: Use the return values.
-    scan_modules(std::move(module_list));
+    std::cout << "[INFO] Scanning modules for sends/recvs..." << std::endl;
+    scan_modules(std::move(module_list), ThreadCount);
 
     return 0;
 }
