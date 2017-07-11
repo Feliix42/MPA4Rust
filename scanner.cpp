@@ -7,19 +7,19 @@ bool isSend(std::string demangled_invoke) {
     std::forward_list<std::string> sends {"$LT$std..sync..mpsc..Sender$LT$T$GT$$GT$::send", \
         "$LT$ipc_channel..ipc..IpcSender$LT$T$GT$$GT$::send"};
 
-    bool found = false;
-    for (std::string send_instr: sends) {
-        found = found || demangled_invoke.find(send_instr) != std::string::npos;
-    }
-    return found;
+    for (std::string send_instr: sends)
+        if (demangled_invoke.find(send_instr) != std::string::npos)
+            return true;
+
+    return false;
 }
 
 
 const char* getSentType(std::string struct_name) {
     // see if string starts with "std::sync::mpsc::Sender<" (or the IPC equivalent)
-    //  extract the type (maybe not here)
+    // and extract the type
     //  IDEA: Substring matches for the Sender identifier and the trailing >
-    //      -> Cut these parts out, Match type (different approach for try_recv(?)
+    //      -> Cut these parts out, return type
     std::forward_list<std::string> senders {"std::sync::mpsc::Sender<", \
         "ipc_channel::ipc::IpcSender<"};
 
@@ -41,11 +41,11 @@ bool isRecv(std::string demangled_invoke) {
         "$LT$ipc_channel..ipc..IpcReceiver$LT$T$GT$$GT$::recv", \
         "$LT$ipc_channel..ipc..IpcReceiver$LT$T$GT$$GT$::try_recv"};
 
-    bool found = false;
-    for (std::string recv_instr: recvs) {
-        found = found || demangled_invoke.find(recv_instr) != std::string::npos;
-    }
-    return found;
+    for (std::string recv_instr: recvs)
+        if (demangled_invoke.find(recv_instr) != std::string::npos)
+            return true;
+
+    return false;
 }
 
 
@@ -53,13 +53,12 @@ const char* getReceivedType(std::string struct_name) {
     std::forward_list<std::string> receivers {"std::sync::mpsc::Receiver<", \
         "ipc_channel::ipc::IpcReceiver<"};
 
-    for (std::string single_receiver: receivers) {
+    for (std::string single_receiver: receivers)
         if (struct_name.find(single_receiver) != std::string::npos) {
             struct_name.erase(0, single_receiver.length());
             struct_name.erase(struct_name.rfind(">"), struct_name.length());
             return struct_name.c_str();
         }
-    }
 
     return nullptr;
 }
@@ -69,12 +68,13 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
     std::forward_list<MessagingNode> sends {};
     std::forward_list<MessagingNode> recvs {};
 
-    // Iterate through all functions through all basic blocks over every instruction within the module
-    for (Function& func: module->getFunctionList()) {
-        for (BasicBlock& bb: func.getBasicBlockList()) {
-            for (Instruction& instr: bb.getInstList()) {
-                if (InvokeInst* ii = dyn_cast<InvokeInst>(&instr)) {
-
+    // Iterate through all functions through all basic blocks over every instruction within the modules
+    for (Function& func: module->getFunctionList())
+        // TODO: maybe make this an opt-in thingy via CLI option?
+        // func.viewCFG();
+        for (BasicBlock& bb: func.getBasicBlockList())
+            for (Instruction& instr: bb.getInstList())
+                if (InvokeInst* ii = dyn_cast<InvokeInst>(&instr))
                     // check if it's an direct function invocation that has a name
                     if (ii->getCalledFunction() && ii->getCalledFunction()->hasName()) {
                         // compare the demangled function name to find out whether it's a send or recv
@@ -147,13 +147,7 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                         }
                         // TODO: Difference between recv and try_recv?
                     }
-                }
-            }
-        }
 
-        // TODO: maybe make this an opt-in thingy via CLI option?
-        // func.viewCFG();
-    }
 
     return std::make_pair(sends, recvs);
 }
@@ -171,6 +165,6 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
         recvs.splice_after(recvs.cbefore_begin(), func_recv);
     }
 
-    return std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>>::pair();
+    return std::make_pair(sends, recvs);
 }
 

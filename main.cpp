@@ -94,9 +94,14 @@ int main(int argc, char** argv) {
     // TODO: Maybe rewrite as LLVM Pass?
     //       Implement scanning (and matching) --> Threading?
 
-    // TODO: Use the return values.
     std::cout << "[INFO] Scanning modules for sends/recvs..." << std::endl;
-    scan_modules(std::move(module_list), ThreadCount);
+
+    std::forward_list<MessagingNode> sends, recvs;
+    std::tie(sends, recvs) = scan_modules(std::move(module_list), ThreadCount);
+
+    for (MessagingNode m: sends) {
+        std::cout << "Got: '" << m.type << "'" << std::endl;
+    }
 
     return 0;
 }
