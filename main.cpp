@@ -57,7 +57,6 @@ int main(int argc, char** argv) {
             // path specifies a directory
             std::cout << "[INFO] Reading directory." << std::endl;
             file_list = scan_directory(IRPath.c_str());
-
         }
         else {
             std::cerr << "[ERROR] The path provided does not appear to be a directory, nor a file." << std::endl;

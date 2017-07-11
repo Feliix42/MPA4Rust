@@ -5,7 +5,7 @@ LDFLAGS=`llvm-config --ldflags` -lboost_filesystem -lboost_system
 LLVMLIBS=`llvm-config --system-libs --libs`
 
 MAIN = rmpa
-SRCS = main.cpp scanner.cpp
+SRCS = main.cpp scanner.cpp analyzer.cpp
 OBJS = $(SRCS:.cpp=.o)
 
 .PHONY: all clean debug
