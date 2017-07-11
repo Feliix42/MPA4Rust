@@ -98,11 +98,17 @@ int main(int argc, char** argv) {
     std::forward_list<MessagingNode> sends, recvs;
     std::tie(sends, recvs) = scan_modules(std::move(module_list), ThreadCount);
 
-    for (MessagingNode m: sends) {
-        std::cout << "Got: '" << m.type << "'" << std::endl;
-    }
-    // start the analysis
-    std::forward_list<std::pair<MessagingNode*, MessagingNode*>> node_pairs = analyzeNodes(&sends, &recvs);
+    for (MessagingNode m: sends)
+        std::cout << "Got send: '" << m.type << "'" << std::endl;
+    for (MessagingNode m: recvs)
+        std::cout << "Got recv: '" << m.type << "'" << std::endl;
+    std::cout << std::endl;
 
+    // start the analysis
+    std::cout << "[INFO] Starting Analysis..." << std::endl;
+    std::forward_list<std::pair<MessagingNode*, MessagingNode*>> node_pairs = analyzeNodes(sends, recvs);
+
+    for (std::pair<MessagingNode*, MessagingNode*> pair: node_pairs)
+        std::cout << "[matched] " << pair.first->type << " --> " << pair.second->type << std::endl;
     return 0;
 }
