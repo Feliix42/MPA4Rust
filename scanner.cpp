@@ -6,6 +6,7 @@ using namespace llvm;
 bool isSend(std::string demangled_invoke) {
     std::forward_list<std::string> sends {"$LT$std..sync..mpsc..Sender$LT$T$GT$$GT$::send", \
         "$LT$ipc_channel..ipc..IpcSender$LT$T$GT$$GT$::send"};
+
     bool found = false;
     for (std::string send_instr: sends) {
         found = found || demangled_invoke.find(send_instr) != std::string::npos;
@@ -14,16 +15,53 @@ bool isSend(std::string demangled_invoke) {
 }
 
 
+const char* getSentType(std::string struct_name) {
+    // see if string starts with "std::sync::mpsc::Sender<" (or the IPC equivalent)
+    //  extract the type (maybe not here)
+    //  IDEA: Substring matches for the Sender identifier and the trailing >
+    //      -> Cut these parts out, Match type (different approach for try_recv(?)
+    std::forward_list<std::string> senders {"std::sync::mpsc::Sender<", \
+        "ipc_channel::ipc::IpcSender<"};
+
+    for (std::string single_sender: senders) {
+        if (struct_name.find(single_sender) != std::string::npos) {
+            struct_name.erase(0, single_sender.length());
+            struct_name.erase(struct_name.rfind(">"), struct_name.length());
+            return struct_name.c_str();
+        }
+    }
+
+    return nullptr;
+}
+
+
 bool isRecv(std::string demangled_invoke) {
     std::forward_list<std::string> recvs {"$LT$std..sync..mpsc..Receiver$LT$T$GT$$GT$::recv", \
         "$LT$std..sync..mpsc..Receiver$LT$T$GT$$GT$::try_recv", \
         "$LT$ipc_channel..ipc..IpcReceiver$LT$T$GT$$GT$::recv", \
         "$LT$ipc_channel..ipc..IpcReceiver$LT$T$GT$$GT$::try_recv"};
+
     bool found = false;
     for (std::string recv_instr: recvs) {
         found = found || demangled_invoke.find(recv_instr) != std::string::npos;
     }
     return found;
+}
+
+
+const char* getReceivedType(std::string struct_name) {
+    std::forward_list<std::string> receivers {"std::sync::mpsc::Receiver<", \
+        "ipc_channel::ipc::IpcReceiver<"};
+
+    for (std::string single_receiver: receivers) {
+        if (struct_name.find(single_receiver) != std::string::npos) {
+            struct_name.erase(0, single_receiver.length());
+            struct_name.erase(struct_name.rfind(">"), struct_name.length());
+            return struct_name.c_str();
+        }
+    }
+
+    return nullptr;
 }
 
 
@@ -44,6 +82,8 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                         const char* demangled_name = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
                         if (s != 0)
                             break;
+
+                        // Instruction *is* sending something
                         if (isSend(demangled_name)) {
                             /* Debug Section */
                             std::cout << std::endl;
@@ -63,10 +103,17 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                                 std::cout << "  -- " << arg.getArgNo() << std::endl;
                             }
                             std::cout << std::endl;
-
-
                             /* Where the magic will happen */
-                            sends.push_front(MessagingNode {ii, ""});
+
+                            for (Argument& arg: ii->getCalledFunction()->getArgumentList()) {
+                                if (isa<PointerType>(arg.getType())) {
+                                    std::string struct_name = cast<PointerType>(arg.getType())->getElementType()->getStructName().str();
+                                    if (const char* type = getSentType(std::move(struct_name))) {
+                                        std::cout << "Extracted: " << type << std::endl;
+                                        sends.push_front(MessagingNode {ii, type});
+                                    }
+                                }
+                            }
                         }
                         else if (isRecv(demangled_name)) {
                             /* Debug Section */
@@ -87,7 +134,16 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                             std::cout << std::endl;
 
                             /* Where the magic will happen */
-                            recvs.push_front(MessagingNode {ii, ""});
+
+                            for (Argument& arg: ii->getCalledFunction()->getArgumentList()) {
+                                if (isa<PointerType>(arg.getType())) {
+                                    std::string struct_name = cast<PointerType>(arg.getType())->getElementType()->getStructName().str();
+                                    if (const char* type = getReceivedType(std::move(struct_name))) {
+                                        std::cout << "Extracted: " << type << std::endl;
+                                        recvs.push_front(MessagingNode {ii, type});
+                                    }
+                                }
+                            }
                         }
                         // TODO: Difference between recv and try_recv?
                     }
