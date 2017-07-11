@@ -21,5 +21,6 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "scanner.hpp"
+#include "analyzer.hpp"
 
 #endif /* main_hpp */

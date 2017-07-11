@@ -49,6 +49,7 @@ bool isRecv(std::string demangled_invoke) {
 }
 
 
+// TODO: check, if received type is correctly identified for IpcSenders!!!
 const char* getReceivedType(std::string struct_name) {
     std::forward_list<std::string> receivers {"std::sync::mpsc::Receiver<", \
         "ipc_channel::ipc::IpcReceiver<"};

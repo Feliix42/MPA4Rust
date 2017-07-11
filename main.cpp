@@ -102,6 +102,8 @@ int main(int argc, char** argv) {
     for (MessagingNode m: sends) {
         std::cout << "Got: '" << m.type << "'" << std::endl;
     }
+    // start the analysis
+    std::forward_list<std::pair<MessagingNode*, MessagingNode*>> node_pairs = analyzeNodes(&sends, &recvs);
 
     return 0;
 }

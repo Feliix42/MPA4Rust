@@ -16,12 +16,10 @@
 // name demangling
 #include "llvm/Demangle/Demangle.h"
 
+#include "types.hpp"
 
-struct MessagingNode {
-    llvm::InvokeInst* instr;
-    std::string type;
-};
 
+// function definitions
 std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> scan_modules(std::forward_list<std::unique_ptr<llvm::Module>> modules, int thread_no);
 
 #endif /* scanner_hpp */
