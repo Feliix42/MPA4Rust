@@ -17,7 +17,9 @@ MessageMap buildMessageMap(std::forward_list<std::pair<MessagingNode, MessagingN
 
 std::string getNodeName (std::string verbose_name) {
     std::hash<std::string> hash_fn;
-    return std::to_string(hash_fn(verbose_name));
+    std::string nodename = "Node";
+    nodename.append(std::to_string(hash_fn(verbose_name)));
+    return nodename;
 }
 
 
@@ -33,8 +35,7 @@ void visualize(std::forward_list<std::pair<MessagingNode, MessagingNode>> node_p
         << "\tlabel=\"Generated Message Graph\";" << std::endl << std::endl;
 
         for (std::pair<std::string, std::forward_list<std::pair<std::string, std::string>>> item: mmap) {
-            std::string nodename = "Node";
-            nodename.append(getNodeName(item.first));
+            std::string nodename = getNodeName(item.first);
             // TODO: might need to insert manual linebreaks...
             graph_file << "\t" << nodename << " [shape=box,label=\"" << item.first << "\"]" << std::endl;
 
@@ -48,7 +49,7 @@ void visualize(std::forward_list<std::pair<MessagingNode, MessagingNode>> node_p
 
         graph_file.close();
 
-        std::cout << "Done!";
+        std::cout << "Done!" << std::endl;
     }
     else
         std::cerr << "[ERROR] Could not open output file!" << std::endl;
