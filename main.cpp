@@ -7,7 +7,8 @@ namespace fs = ::boost::filesystem;
 cl::OptionCategory AnalyzerCategory("Runtime Options", "Options for manipulating the runtime options of the program.");
 cl::opt<std::string> IRPath(cl::Positional, cl::desc("<IR file or directory>"), cl::Required);
 cl::opt<int> ThreadCount("t", cl::desc("Number of threads to use for calculation"), cl::cat(AnalyzerCategory));
-cl::opt<bool> VerboseOutput("v", cl::desc("Turn on verbose mode"));
+cl::opt<bool> VerboseOutput("v", cl::desc("Turn on verbose mode"), cl::cat(AnalyzerCategory), cl::init("message_graph.dot"));
+cl::opt<std::string> OutputPath("o", cl::desc("Optionally specify an output path for the graph"));
 
 
 std::forward_list<std::string> scan_directory(const fs::path& root) {
@@ -44,6 +45,9 @@ int main(int argc, char** argv) {
     if (ThreadCount < 1)
         ThreadCount = 1;
 
+    if (OutputPath.empty())
+        OutputPath = "message_graph.dot";
+
     std::forward_list<std::string> file_list {};
     struct stat s;
     // check if the path is valid and if it describes a file or directory
@@ -70,12 +74,11 @@ int main(int argc, char** argv) {
 
     // TODO: Do this in threads?
 
-    // TODO: Catch errors returned in SMDiagnostic!
+    std::cout << "[INFO] Loading modules..." << std::endl;
     SMDiagnostic err = SMDiagnostic();
     LLVMContext context;
     std::forward_list<std::unique_ptr<Module>> module_list {};
 
-    std::cout << "[INFO] Loading modules..." << std::endl;
     // TODO: Load all modules in data structure
     //       -> separate structures for threading support?
     for (std::string path: file_list) {
@@ -110,5 +113,7 @@ int main(int argc, char** argv) {
 
     for (std::pair<MessagingNode, MessagingNode> pair: node_pairs)
         std::cout << "[matched] " << pair.first.type << " --> " << pair.second.type << std::endl;
+
+    visualize(node_pairs, OutputPath);
     return 0;
 }

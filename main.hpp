@@ -22,5 +22,6 @@
 
 #include "scanner.hpp"
 #include "analyzer.hpp"
+#include "visualizer.hpp"
 
 #endif /* main_hpp */
