@@ -10,7 +10,7 @@ std::forward_list<std::pair<MessagingNode, MessagingNode>> analyzeNodes(std::for
             long compared = send.type.length() - recv.type.length();
             if (compared == 0) {
                 if (send.type == recv.type) {
-                    std::cout << send.type << " matches " << recv.type << std::endl;
+//                    std::cout << send.type << " matches " << recv.type << std::endl;
                     matched.push_front(std::make_pair(send, recv));
                 }
             }
@@ -19,7 +19,7 @@ std::forward_list<std::pair<MessagingNode, MessagingNode>> analyzeNodes(std::for
                 // unsigned long diff = recv.type.length() - send.type.length();
                 // std::cout << diff << " Comparing " << recv.type.substr(diff) << " to " << send.type;
                 if (recv.type.substr(recv.type.length() - send.type.length()) == send.type) {
-                    std::cout << send.type << " matches " << recv.type << std::endl;
+//                    std::cout << send.type << " matches " << recv.type << std::endl;
                     matched.push_front(std::make_pair(send, recv));
                 }
                 // std::cout << std::endl;
@@ -28,7 +28,7 @@ std::forward_list<std::pair<MessagingNode, MessagingNode>> analyzeNodes(std::for
                 // recv is shorter than send
                 // std::cout << "2 Comparing " << send.type.substr(send.type.length() - recv.type.length()) << " to " << recv.type;
                 if (send.type.substr(send.type.length() - recv.type.length()) == recv.type) {
-                    std::cout << send.type << " matches " << recv.type << std::endl;
+//                    std::cout << send.type << " matches " << recv.type << std::endl;
                     matched.push_front(std::make_pair(send, recv));
                 }
                 // std::cout << std::endl;

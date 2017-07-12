@@ -87,30 +87,32 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                         // Instruction *is* sending something
                         if (isSend(demangled_name)) {
                             /* Debug Section */
-                            std::cout << std::endl;
-                            std::cout << "[INFO] Current Module: " << ii->getModule()->getName().str() << std::endl;
-                            std::cout << "[INFO] Hit `send` in function " << ii->getFunction()->getName().str() << std::endl;
-                            std::cout << "  Called Function: " << ii->getCalledFunction()->getName().str() << std::endl;
-                            if (demangled_name)
-                                std::cout << "  Demangled: " << demangled_name << std::endl;
-
-                            for (Argument& arg: ii->getCalledFunction()->getArgumentList()) {
-                                // check if argument is a PointerType (which is the case for the Sender/Receiver structs.
-                                if (isa<PointerType>(arg.getType()))
-                                    std::cout << dyn_cast<PointerType>(arg.getType())->getElementType()->getStructName().str();
-                                else
-                                    arg.getType()->print(outs());
-
-                                std::cout << "  -- " << arg.getArgNo() << std::endl;
-                            }
-                            std::cout << std::endl;
+//                            std::cout << std::endl;
+//                            std::cout << "[INFO] Current Module: " << ii->getModule()->getName().str() << std::endl;
+//                            std::cout << "[INFO] Hit `send` in function " << ii->getFunction()->getName().str() << std::endl;
+//                            if (ii->getFunction()->getSectionPrefix().hasValue())
+//                                std::cout << "[INFO] Section prefix: " << ii->getFunction()->getSectionPrefix().getValue().str() << std::endl;
+//                            std::cout << "  Called Function: " << ii->getCalledFunction()->getName().str() << std::endl;
+//                            if (demangled_name)
+//                                std::cout << "  Demangled: " << demangled_name << std::endl;
+//
+//                            for (Argument& arg: ii->getCalledFunction()->getArgumentList()) {
+//                                // check if argument is a PointerType (which is the case for the Sender/Receiver structs.
+//                                if (isa<PointerType>(arg.getType()))
+//                                    std::cout << dyn_cast<PointerType>(arg.getType())->getElementType()->getStructName().str();
+//                                else
+//                                    arg.getType()->print(outs());
+//
+//                                std::cout << "  -- " << arg.getArgNo() << std::endl;
+//                            }
+//                            std::cout << std::endl;
                             /* Where the magic will happen */
 
                             for (Argument& arg: ii->getCalledFunction()->getArgumentList()) {
                                 if (isa<PointerType>(arg.getType())) {
                                     std::string struct_name = cast<PointerType>(arg.getType())->getElementType()->getStructName().str();
                                     if (const char* type = getSentType(std::move(struct_name))) {
-                                        std::cout << "Extracted: " << type << std::endl;
+                                        // std::cout << "Extracted: " << type << std::endl;
                                         sends.push_front(MessagingNode {ii, type});
                                     }
                                 }
@@ -118,21 +120,23 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                         }
                         else if (isRecv(demangled_name)) {
                             /* Debug Section */
-                            std::cout << "[INFO] Current Module: " << ii->getModule()->getName().str() << std::endl;
-                            std::cout << "[INFO] Hit `recv` in function " << ii->getFunction()->getName().str() << std::endl;
-                            std::cout << "  Called Function: " << ii->getCalledFunction()->getName().str() << std::endl;
-                            std::cout << "  Demangled: " << demangled_name << std::endl;
-
-                            for (Argument& arg: ii->getCalledFunction()->getArgumentList()) {
-                                // check if argument is a PointerType (which is the case for the Sender/Receiver structs.
-                                if (isa<PointerType>(arg.getType()))
-                                    std::cout << dyn_cast<PointerType>(arg.getType())->getElementType()->getStructName().str();
-                                else
-                                    arg.getType()->print(outs());
-
-                                std::cout << "  -- " << arg.getArgNo() << std::endl;
-                            }
-                            std::cout << std::endl;
+//                            std::cout << "[INFO] Current Module: " << ii->getModule()->getName().str() << std::endl;
+//                            std::cout << "[INFO] Hit `recv` in function " << ii->getFunction()->getName().str() << std::endl;
+//                            if (ii->getFunction()->getSectionPrefix().hasValue())
+//                                std::cout << "[INFO] Section prefix: " << ii->getFunction()->getSectionPrefix().getValue().str() << std::endl;
+//                            std::cout << "  Called Function: " << ii->getCalledFunction()->getName().str() << std::endl;
+//                            std::cout << "  Demangled: " << demangled_name << std::endl;
+//
+//                            for (Argument& arg: ii->getCalledFunction()->getArgumentList()) {
+//                                // check if argument is a PointerType (which is the case for the Sender/Receiver structs.
+//                                if (isa<PointerType>(arg.getType()))
+//                                    std::cout << dyn_cast<PointerType>(arg.getType())->getElementType()->getStructName().str();
+//                                else
+//                                    arg.getType()->print(outs());
+//
+//                                std::cout << "  -- " << arg.getArgNo() << std::endl;
+//                            }
+//                            std::cout << std::endl;
 
                             /* Where the magic will happen */
 
