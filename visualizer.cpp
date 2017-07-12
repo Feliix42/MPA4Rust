@@ -1,12 +1,12 @@
 #include "visualizer.hpp"
 
-MessageMap buildMessageMap(std::forward_list<std::pair<MessagingNode, MessagingNode>> node_pairs) {
+MessageMap buildMessageMap(const std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* node_pairs) {
     MessageMap mmap = MessageMap();
-    for (std::pair<MessagingNode, MessagingNode> pair: node_pairs) {
-        std::string sender_module = pair.first.instr->getModule()->getName().str();
-        std::string receiver_module = pair.second.instr->getModule()->getName().str();
+    for (std::pair<MessagingNode*, MessagingNode*> pair: *node_pairs) {
+        std::string sender_module = pair.first->instr->getModule()->getName().str();
+        std::string receiver_module = pair.second->instr->getModule()->getName().str();
 
-        mmap[sender_module].push_front(std::make_pair(receiver_module, pair.first.type));
+        mmap[sender_module].push_front(std::make_pair(receiver_module, pair.first->type));
         if (mmap.find(receiver_module) == mmap.end())
             mmap.insert(std::make_pair(receiver_module, std::forward_list<std::pair<std::string, std::string>>::forward_list()));
     }
@@ -23,8 +23,8 @@ std::string getNodeName (std::string verbose_name) {
 }
 
 
-void visualize(std::forward_list<std::pair<MessagingNode, MessagingNode>> node_pairs, std::string output_path) {
-    MessageMap mmap = buildMessageMap(std::move(node_pairs));
+void visualize(const std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* node_pairs, std::string output_path) {
+    MessageMap mmap = buildMessageMap(node_pairs);
 
     std::ofstream graph_file(output_path.c_str());
     if (graph_file.good()) {

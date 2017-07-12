@@ -144,7 +144,7 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                                 if (isa<PointerType>(arg.getType())) {
                                     std::string struct_name = cast<PointerType>(arg.getType())->getElementType()->getStructName().str();
                                     if (const char* type = getReceivedType(std::move(struct_name))) {
-                                        std::cout << "Extracted: " << type << std::endl;
+//                                        std::cout << "Extracted: " << type << std::endl;
                                         recvs.push_front(MessagingNode {ii, type});
                                     }
                                 }
