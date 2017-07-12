@@ -157,7 +157,7 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
     return std::make_pair(sends, recvs);
 }
 
-std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> scan_modules(std::forward_list<std::unique_ptr<Module>> modules, int thread_no) {
+std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> scan_modules(std::forward_list<std::unique_ptr<Module>>& modules, int thread_no) {
     // TODO: do parallelism in this function
     std::forward_list<MessagingNode> sends {}, func_send;
     std::forward_list<MessagingNode> recvs {}, func_recv;

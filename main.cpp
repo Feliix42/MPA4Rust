@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
     std::cout << "[INFO] Scanning modules for sends/recvs..." << std::endl;
 
     std::forward_list<MessagingNode> sends, recvs;
-    std::tie(sends, recvs) = scan_modules(std::move(module_list), ThreadCount);
+    std::tie(sends, recvs) = scan_modules(module_list, ThreadCount);
 
 //    for (MessagingNode m: sends)
 //        std::cout << "Got send: '" << m.type << "'" << std::endl;
