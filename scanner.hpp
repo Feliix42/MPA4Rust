@@ -3,6 +3,7 @@
 
 #include <tuple>
 #include <forward_list>
+#include <stack>
 
 // just for io stuff
 #include <iostream>
@@ -15,6 +16,8 @@
 
 // name demangling
 #include "llvm/Demangle/Demangle.h"
+
+#include "llvm/IR/DebugInfoMetadata.h"
 
 #include "types.hpp"
 

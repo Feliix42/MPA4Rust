@@ -7,8 +7,8 @@ namespace fs = ::boost::filesystem;
 cl::OptionCategory AnalyzerCategory("Runtime Options", "Options for manipulating the runtime options of the program.");
 cl::opt<std::string> IRPath(cl::Positional, cl::desc("<IR file or directory>"), cl::Required);
 cl::opt<int> ThreadCount("t", cl::desc("Number of threads to use for calculation"), cl::cat(AnalyzerCategory));
-cl::opt<bool> VerboseOutput("v", cl::desc("Turn on verbose mode"), cl::cat(AnalyzerCategory), cl::init("message_graph.dot"));
-cl::opt<std::string> OutputPath("o", cl::desc("Optionally specify an output path for the graph"));
+cl::opt<bool> VerboseOutput("v", cl::desc("Turn on verbose mode"), cl::cat(AnalyzerCategory));
+cl::opt<std::string> OutputPath("o", cl::desc("Optionally specify an output path for the graph"), cl::cat(AnalyzerCategory), cl::init("message_graph.dot"));
 
 
 std::forward_list<std::string> scan_directory(const fs::path& root) {

@@ -3,8 +3,8 @@
 MessageMap buildMessageMap(const std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* node_pairs) {
     MessageMap mmap = MessageMap();
     for (std::pair<MessagingNode*, MessagingNode*> pair: *node_pairs) {
-        std::string sender_module = pair.first->instr->getModule()->getName().str();
-        std::string receiver_module = pair.second->instr->getModule()->getName().str();
+        std::string sender_module = pair.first->nspace;
+        std::string receiver_module = pair.second->nspace;
 
         mmap[sender_module].push_front(std::make_pair(receiver_module, pair.first->type));
         if (mmap.find(receiver_module) == mmap.end())

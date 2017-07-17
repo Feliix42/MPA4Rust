@@ -65,6 +65,40 @@ const char* getReceivedType(std::string struct_name) {
 }
 
 
+inline std::string getNamespace(const Function* func) {
+    // TODO: I'm not yet satisfied with the way this function works.
+    // It seems that some parts of the namespace are replaced with an {{impl}}
+    // instead of the name of the struct the function is implemented for.
+    // Check, whether this can be "adjusted". -- Feliix42 (2017-07-17)
+    // TODO: Remove debug output -- Feliix42 (2017-07-17)
+    std::stack<std::string> namestack;
+
+    DIScope* sc = func->getSubprogram()->getScope().resolve();
+    namestack.push(sc->getName().str());
+
+    std::cout << "tree: " << sc->getName().str();
+    while (sc->getScope().resolve()) {
+        sc = sc->getScope().resolve();
+        if (sc->getName().str() == "{{impl}}")
+            sc->dump();
+        std::cout << " - " << sc->getName().str();
+        namestack.push(sc->getName().str());
+    }
+    std::cout << std::endl;
+
+    // build the namespace string, append "::" between the separate namespace identifiers
+    std::string ns = namestack.top();
+    namestack.pop();
+    while (namestack.size() > 0 && namestack.top() != "{{impl}}") {
+        ns.append("::").append(namestack.top());
+        namestack.pop();
+    }
+
+    std::cout << "converted: " << ns << std::endl;
+    return ns;
+}
+
+
 std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> scan_module(std::unique_ptr<Module>& module) {
     std::forward_list<MessagingNode> sends {};
     std::forward_list<MessagingNode> recvs {};
@@ -108,12 +142,22 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
 //                            std::cout << std::endl;
                             /* Where the magic will happen */
 
+
+//                            for (Use& operand: ii->arg_operands()) {
+//                                std::cout << std::endl << "[wow] ";
+//                                operand.get()->print(outs());
+//                                operand.get()->getType()->print(outs());
+//                                std::cout << std::endl;
+//                            }
                             for (Argument& arg: ii->getCalledFunction()->getArgumentList()) {
+                                // std::cout << "Value Name: " <<
+                                // arg.getValueName()->getValue()->print(outs()); //  << std::endl;
                                 if (isa<PointerType>(arg.getType())) {
                                     std::string struct_name = cast<PointerType>(arg.getType())->getElementType()->getStructName().str();
                                     if (const char* type = getSentType(std::move(struct_name))) {
-                                        // std::cout << "Extracted: " << type << std::endl;
-                                        sends.push_front(MessagingNode {ii, type});
+//                                        std::cout << "Extracted: " << type << " at Line " << ii->getDebugLoc().getLine() << std::endl; // << ", Scope: " << cast<DIScope>(ii->getDebugLoc().getScope())->getName().str() << std::endl;
+//                                        std::cout << "got: " << type << " -- " << getNamespace(&func) << std::endl;
+                                        sends.push_front(MessagingNode {ii, type, getNamespace(&func)});
                                     }
                                 }
                             }
@@ -137,7 +181,6 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
 //                                std::cout << "  -- " << arg.getArgNo() << std::endl;
 //                            }
 //                            std::cout << std::endl;
-
                             /* Where the magic will happen */
 
                             for (Argument& arg: ii->getCalledFunction()->getArgumentList()) {
@@ -145,7 +188,8 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                                     std::string struct_name = cast<PointerType>(arg.getType())->getElementType()->getStructName().str();
                                     if (const char* type = getReceivedType(std::move(struct_name))) {
 //                                        std::cout << "Extracted: " << type << std::endl;
-                                        recvs.push_front(MessagingNode {ii, type});
+//                                        std::cout << "got: " << type << " -- " << getNamespace(&func) << std::endl;
+                                        recvs.push_front(MessagingNode {ii, type, getNamespace(&func)});
                                     }
                                 }
                             }

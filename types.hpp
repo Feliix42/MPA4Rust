@@ -9,6 +9,7 @@
 struct MessagingNode {
     llvm::InvokeInst* instr;
     std::string type;
+    std::string nspace;
 };
 
 typedef std::unordered_map<std::string, std::forward_list<std::pair<std::string, std::string>>> MessageMap;
