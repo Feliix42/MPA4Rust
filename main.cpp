@@ -101,11 +101,6 @@ int main(int argc, char** argv) {
     std::forward_list<MessagingNode> sends, recvs;
     std::tie(sends, recvs) = scan_modules(module_list, ThreadCount);
 
-//    for (MessagingNode m: sends)
-//        std::cout << "Got send: '" << m.type << "'" << std::endl;
-//    for (MessagingNode m: recvs)
-//        std::cout << "Got recv: '" << m.type << "'" << std::endl;
-//    std::cout << std::endl;
 
     // start the analysis
     std::cout << "[INFO] Starting Analysis..." << std::endl;

@@ -7,31 +7,32 @@ std::forward_list<std::pair<MessagingNode*, MessagingNode*>> analyzeNodes(std::f
 
     for (MessagingNode& send: sends)
         for (MessagingNode& recv: recvs) {
+            // there are various options for matching here:
+            //      - either the types have the same length and are of the same type, or
+            //      - the two types are of different length and the program has to check whether
+            //        the last len(n) characters of the longer string match the shorter one.
+            //        This is due to namespacing and can be illustrated using the following example:
+            //              sent: weatherstation::Weather
+            //              recv:                 Weather
+            //
+            //        The types are the same, but the names are different due to namespacing.
             long compared = send.type.length() - recv.type.length();
             if (compared == 0) {
                 if (send.type == recv.type) {
-//                    std::cout << send.type << " matches " << recv.type << std::endl;
                     matched.push_front(std::make_pair(&send, &recv));
                 }
             }
             else if (compared < 0) {
                 // send is shorter than recv
-                // unsigned long diff = recv.type.length() - send.type.length();
-                // std::cout << diff << " Comparing " << recv.type.substr(diff) << " to " << send.type;
                 if (recv.type.substr(recv.type.length() - send.type.length()) == send.type) {
-//                    std::cout << send.type << " matches " << recv.type << std::endl;
                     matched.push_front(std::make_pair(&send, &recv));
                 }
-                // std::cout << std::endl;
             }
             else {
                 // recv is shorter than send
-                // std::cout << "2 Comparing " << send.type.substr(send.type.length() - recv.type.length()) << " to " << recv.type;
                 if (send.type.substr(send.type.length() - recv.type.length()) == recv.type) {
-//                    std::cout << send.type << " matches " << recv.type << std::endl;
                     matched.push_front(std::make_pair(&send, &recv));
                 }
-                // std::cout << std::endl;
             }
         }
 

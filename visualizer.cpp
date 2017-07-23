@@ -15,7 +15,14 @@ MessageMap buildMessageMap(const std::forward_list<std::pair<MessagingNode*, Mes
 }
 
 
+/**
+ Generate the internal name of a node in the graph by hashing its description.
+
+ @param verbose_name The verbose node name.
+ @return The hashed node name following the scheme "Node<hash>".
+ */
 std::string getNodeName (std::string verbose_name) {
+    // TODO: maybe make the hashing function global
     std::hash<std::string> hash_fn;
     std::string nodename = "Node";
     nodename.append(std::to_string(hash_fn(verbose_name)));
