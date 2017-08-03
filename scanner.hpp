@@ -3,6 +3,7 @@
 
 #include <tuple>
 #include <forward_list>
+#include <unordered_set>
 #include <stack>
 
 // just for io stuff
@@ -14,6 +15,9 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/IR/Operator.h"
+
+// MemoryTransfer Instructions (like memcpy etc)
+#include "llvm/IR/IntrinsicInst.h"
 
 // name demangling
 #include "llvm/Demangle/Demangle.h"

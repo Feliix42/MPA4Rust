@@ -201,20 +201,67 @@ inline std::string getNamespace(const Function* func) {
 }
 
 
-StoreInst* getRelevantStoreFromValue(Value* a) {
-    if (LoadInst* li = dyn_cast<LoadInst>(a)) {
-        // TODO: This currently assumes that only one store will be found. Is this right? (Should be due to ssa?)
-        for (User* u: li->getPointerOperand()->users()) {
-            errs() << "Intermediate step: " << *u << "\n";
-            if (StoreInst* si = dyn_cast<StoreInst>(u)) {
-//                si->dump();
+StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set<Value*>* been_there) {
+    // this set keeps book about the statements we have seen so far to detect loops
+    if (been_there->find(val) == been_there->end())
+        been_there->insert(val);
+    else
+        return nullptr;
 
-                // recursion: If there is a deeper send: return it, else return the current stage
-                if (StoreInst* deeper_si = getRelevantStoreFromValue(si->getValueOperand()))
-                    return deeper_si;
-                else
-                    return si;
+//    errs() << "Inspect: " << *val << "\n" << val->getNumUses() << " uses:\n";
+//    for (User* u: val->users()) {
+//        errs() << *u << "\n";
+//    }
+
+
+    // hacky workaround:
+    if (BitCastInst* bi = dyn_cast<BitCastInst>(val)) {
+        StoreInst* deep_store_inst = getRelevantStoreFromValue(bi->getOperand(0), val, been_there);
+        if (deep_store_inst != nullptr)
+            return deep_store_inst;
+    }
+    for (User* u: val->users()) {
+        if (LoadInst* li = dyn_cast<LoadInst>(u)) {
+            StoreInst* deep_store_inst = getRelevantStoreFromValue(li->getPointerOperand(), val, been_there);
+            if (deep_store_inst != nullptr)
+                return deep_store_inst;
+        }
+        if (StoreInst* si = dyn_cast<StoreInst>(u)) {
+            // we are done after having found a constant assignment
+            if (isa<ConstantInt>(si->getValueOperand()))
+                return si;
+            else {
+                StoreInst* deep_store_inst = getRelevantStoreFromValue(si->getValueOperand(), val, been_there);
+                if (deep_store_inst != nullptr)
+                    return deep_store_inst;
             }
+        }
+        if (BitCastInst* bi = dyn_cast<BitCastInst>(u)) {
+            StoreInst* deep_store_inst;
+            if (bi->getOperand(0) == val)
+                deep_store_inst = getRelevantStoreFromValue(bi, val, been_there);
+            else
+                deep_store_inst = getRelevantStoreFromValue(bi->getOperand(0), val, been_there);
+
+            if (deep_store_inst != nullptr)
+                return deep_store_inst;
+        }
+        if (AllocaInst* ai = dyn_cast<AllocaInst>(u))
+            continue;
+        if (MemTransferInst* mi = dyn_cast<MemTransferInst>(u)) {
+            StoreInst* deep_store_inst;
+            if (mi->getRawDest() == val)
+                deep_store_inst = getRelevantStoreFromValue(mi->getRawSource(), val, been_there);
+            else
+                deep_store_inst = getRelevantStoreFromValue(mi->getRawDest(), val, been_there);
+
+            if (deep_store_inst != nullptr)
+                return deep_store_inst;
+        }
+        if (GetElementPtrInst* gi = dyn_cast<GetElementPtrInst>(u)) {
+            StoreInst* deep_store_inst = getRelevantStoreFromValue(gi, val, been_there);
+            if (deep_store_inst != nullptr)
+                return deep_store_inst;
         }
     }
 
@@ -267,12 +314,13 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                                 errs() << "Identified argument " << *a << "\n";
 
                                 std::cout << "[DEBUG] Getting relevant store instruction(s)" << std::endl;
-                                StoreInst* si = getRelevantStoreFromValue(a);
+                                std::unordered_set<Value*> been_there {};
+                                StoreInst* si = getRelevantStoreFromValue(a, nullptr, &been_there);
                                 if (si == nullptr)
                                     std::cerr << "[ERROR] No store instruction found!" << std::endl;
                                 else {
                                     if (ConstantInt* assigned_number = dyn_cast<ConstantInt>(si->getValueOperand()))
-                                        std::cout << "[INFO] Found a viable assignment: " << assigned_number << " is assigned." << std::endl;
+                                        outs() << "[INFO] Found a viable assignment: " << assigned_number->getValue() << " is assigned.\n";
                                     else
                                         errs() << "[ERR] Could only find: " << *si << "\n";
 //                                    std::cout << " -- " << si->getPointerOperand()->isUsedByMetadata() << std::endl;
