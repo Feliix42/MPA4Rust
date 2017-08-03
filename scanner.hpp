@@ -13,6 +13,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/IR/Operator.h"
 
 // name demangling
 #include "llvm/Demangle/Demangle.h"

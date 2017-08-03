@@ -106,33 +106,119 @@ const char* getReceivedType(std::string struct_name) {
 //  --> return a list!
 // TODO: Find cross-module stuff
 inline std::string getNamespace(const Function* func) {
+//    const Function* f = func;
+//    std::string name = "";
+//
+//    // TODO: Problems: Does not consider the function name itself atm.
+//    //          -> implement this to e.g. check for main function
+//    //          -> reliably find {{closure}} call (a.k.a. thread::spawn and thread::Builder::spawn
+//    //          -> multiple calls?
+//
+//    bool cont = true;
+//    int status;
+//    const char* function_name = itaniumDemangle(f->getName().str().c_str(), nullptr, nullptr, &status);
+//    if (status != 0)
+//        std::cout << "[ERROR] Couldn't demangle name of the function that contains the send." << std::endl;
+//    else {
+//        std::cout << "[DEBUG] Found in iteration 0: " << function_name << std::endl;
+//        std::cout << "[DEBUG] Subprogram name: " << f->getSubprogram()->getName().str() << std::endl;
+//        std::cout << "[DEBUG] Scope: " << f->getSubprogram()->getScope().resolve()->getName().str() << std::endl;
+//    }
+//
+//    int i = 1;
+//    while (cont) {
+//        bool new_found = false;
+//        std::cout << "  [DEBUG] # users: " << f->getNumUses() << std::endl;
+//        for (const User* u: f->users()) {
+//            const char* demangled_name;
+//            int s = -1;
+//
+//            if (const InvokeInst* ii = dyn_cast<InvokeInst>(u)) {
+//                demangled_name = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
+//                f = ii->getFunction();
+//                new_found = true;
+//            }
+//            else if (const CallInst* ci = dyn_cast<CallInst>(u)) {
+//                demangled_name = itaniumDemangle(ci->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
+//                f = ci->getFunction();
+//                new_found = true;
+//            }
+//            else {
+//                std::cerr << "ouch" << std::endl;
+//                u->dump();
+//            }
+//
+//
+//            if (s != 0)
+//                continue;
+//            else {
+//                std::cout << "[DEBUG] Found in iteration " << i << ": " << demangled_name << std::endl;
+//                name = f->getSubprogram()->getName().str();
+//                std::cout << "[DEBUG] Subprogram name: " << name << std::endl;
+//                std::cout << "[DEBUG] Scope: " << f->getSubprogram()->getScope().resolve()->getName().str() << std::endl;
+//            }
+//        }
+//
+//        //quit searching when no new users have been found
+//        if (!new_found)
+//            break;
+//
+//        if (name == "{{closure}}")
+//            cont = false;
+//
+//        i++;
+//    }
+
     // TODO: I'm not yet satisfied with the way this function works.
     // It seems that some parts of the namespace are replaced with an {{impl}}
     // instead of the name of the struct the function is implemented for.
     // Check, whether this can be "adjusted". -- Feliix42 (2017-07-17)
-    std::stack<std::string> namestack;
+//    std::stack<std::string> namestack;
+//
+//    DIScope* sc = func->getSubprogram()->getScope().resolve();
+//    namestack.push(sc->getName().str());
+//
+//    std::cout << "tree: " << sc->getName().str();
+//    while (sc->getScope().resolve()) {
+//        sc = sc->getScope().resolve();
+//        std::cout << " - " << sc->getName().str();
+//        namestack.push(sc->getName().str());
+//    }
+//    std::cout << std::endl;
+//
+//    // build the namespace string, append "::" between the separate namespace identifiers
+//    std::string ns = namestack.top();
+//    namestack.pop();
+//    while (namestack.size() > 0 && namestack.top() != "{{impl}}") {
+//        ns.append("::").append(namestack.top());
+//        namestack.pop();
+//    }
+//
+//    std::cout << "converted: " << ns << std::endl;
+//    return ns;
 
-    DIScope* sc = func->getSubprogram()->getScope().resolve();
-    namestack.push(sc->getName().str());
+    return func->getParent()->getName().str();
+}
 
-    std::cout << "tree: " << sc->getName().str();
-    while (sc->getScope().resolve()) {
-        sc = sc->getScope().resolve();
-        std::cout << " - " << sc->getName().str();
-        namestack.push(sc->getName().str());
+
+StoreInst* getRelevantStoreFromValue(Value* a) {
+    if (LoadInst* li = dyn_cast<LoadInst>(a)) {
+        // TODO: This currently assumes that only one store will be found. Is this right? (Should be due to ssa?)
+        for (User* u: li->getPointerOperand()->users()) {
+            errs() << "Intermediate step: " << *u << "\n";
+            if (StoreInst* si = dyn_cast<StoreInst>(u)) {
+//                si->dump();
+
+                // recursion: If there is a deeper send: return it, else return the current stage
+                if (StoreInst* deeper_si = getRelevantStoreFromValue(si->getValueOperand()))
+                    return deeper_si;
+                else
+                    return si;
+            }
+        }
     }
-    std::cout << std::endl;
 
-    // build the namespace string, append "::" between the separate namespace identifiers
-    std::string ns = namestack.top();
-    namestack.pop();
-    while (namestack.size() > 0 && namestack.top() != "{{impl}}") {
-        ns.append("::").append(namestack.top());
-        namestack.pop();
-    }
-
-    std::cout << "converted: " << ns << std::endl;
-    return ns;
+    return nullptr;
 }
 
 
@@ -163,24 +249,33 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                             for (Argument& arg: ii->getCalledFunction()->getArgumentList()) {
                                 if (isa<PointerType>(arg.getType())) {
                                     std::string struct_name = cast<PointerType>(arg.getType())->getElementType()->getStructName().str();
-                                    if (const char* type = getSentType(std::move(struct_name))) {
+                                    if (const char* sent_type = getSentType(std::move(struct_name))) {
                                         // save the send instruction for matching later on
-                                        sends.push_front(MessagingNode {ii, type, getNamespace(&func)});
+                                        sends.push_front(MessagingNode {ii, sent_type, getNamespace(&func)});
                                         real_send = true;
                                     }
                                 }
                             }
 
                             // if a "real" send has been found, try to get more information about the transmitted value
-                            if (real_send) {
-                                std::cout << "Found a 'real' send." << std::endl;
+                            // TODO: only check the sent values if type != ()
+                            if (real_send && sends.front().type != "()") {
+                                std::cout << "Found a 'real' send in instruction:" << std::endl;
 
                                 ii->dump();
                                 Value* a = ii->getArgOperand(ii->getNumArgOperands() - 1);
-                                a->dump();
-                                if (LoadInst* li = dyn_cast<LoadInst>(a)) {
-                                    std::cout << "Load Instruction" << std::endl;
-                                    li->getPointerOperand()->dump();
+                                errs() << "Identified argument " << *a << "\n";
+
+                                std::cout << "[DEBUG] Getting relevant store instruction(s)" << std::endl;
+                                StoreInst* si = getRelevantStoreFromValue(a);
+                                if (si == nullptr)
+                                    std::cerr << "[ERROR] No store instruction found!" << std::endl;
+                                else {
+                                    if (ConstantInt* assigned_number = dyn_cast<ConstantInt>(si->getValueOperand()))
+                                        std::cout << "[INFO] Found a viable assignment: " << assigned_number << " is assigned." << std::endl;
+                                    else
+                                        errs() << "[ERR] Could only find: " << *si << "\n";
+//                                    std::cout << " -- " << si->getPointerOperand()->isUsedByMetadata() << std::endl;
                                 }
                             }
                         }
@@ -196,7 +291,6 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                             }
                         }
                     }
-
 
     return std::make_pair(sends, recvs);
 }
