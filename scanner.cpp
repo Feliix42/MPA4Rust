@@ -205,8 +205,10 @@ StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set
     // this set keeps book about the statements we have seen so far to detect loops
     if (been_there->find(val) == been_there->end())
         been_there->insert(val);
-    else
+    else {
+        errs() << "Been there, done that. No way.\n";
         return nullptr;
+    }
 
 //    errs() << "Inspect: " << *val << "\n" << val->getNumUses() << " uses:\n";
 //    for (User* u: val->users()) {
@@ -214,9 +216,14 @@ StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set
 //    }
 
 
-    // hacky workaround:
+    // hacky workarounds:
     if (BitCastInst* bi = dyn_cast<BitCastInst>(val)) {
         StoreInst* deep_store_inst = getRelevantStoreFromValue(bi->getOperand(0), val, been_there);
+        if (deep_store_inst != nullptr)
+            return deep_store_inst;
+    }
+    if (LoadInst* li = dyn_cast<LoadInst>(val)) {
+        StoreInst* deep_store_inst = getRelevantStoreFromValue(li->getPointerOperand(), val, been_there);
         if (deep_store_inst != nullptr)
             return deep_store_inst;
     }
