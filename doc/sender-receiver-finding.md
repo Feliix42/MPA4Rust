@@ -1,4 +1,4 @@
-# Notes
+# Deconstructing sent and received messages
 
 ## Message passing using [MPSC channels](https://doc.rust-lang.org/std/sync/mpsc/index.html)
 

@@ -19,7 +19,11 @@ impl Weatherstation {
         thread::spawn(move || loop {
                           match station.receiver.try_recv() {
                               Ok(msg) => {
-                                  println!("[{}] The weather today: {:?}", station.name, msg)
+                                  match msg {
+                                      Weather::Sunny => println!("[{}] The sun is shining!", station.name),
+                                      Weather::Cloudy => println!("[{}] It's cloudy today.", station.name),
+                                      Weather::Thunder => println!("[{}] Better seek shelter!", station.name),
+                                  }
                               }
                               Err(_) => (),
                           }
