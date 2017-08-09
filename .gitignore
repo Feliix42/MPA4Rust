@@ -1,3 +1,8 @@
+# Ignore any input and output files
+*.log
+*.ll
+*.dot
+
 *.dSYM
 /rmpa
 .idea/
