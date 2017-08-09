@@ -6,7 +6,9 @@ This repository contains a small tool to analyze message passing in multi-thread
 ## Building
 You can build the project by simply running `make all` within the repository. 
 
-_Please note:_ You need **LLVM 4.0** installed on your system and in your path for this to work, since the project uses many libraries provided by LLVM.
+### Requirements
+- You need **LLVM 4.0** installed on your system and in your path for this to work, since the project uses many libraries provided by LLVM.
+- The [`boost` Filesystem libraries](http://www.boost.org/doc/libs/1_64_0/libs/filesystem/doc/index.htm) are used for filesystem interaction. Make sure they are installed.
 
 
 ## Preparing the source code to be analyzed
@@ -17,5 +19,5 @@ You can do so by running
 $ RUSTFLAGS="--emit=llvm-ir" cargo build
 ```
 
-Currently, this works only with Rust Nightly, since Stable Rust uses LLVM 3.9, but we require version 4.0. for the Intermediate Representations to be compatible.
+This should work with stable Rust version 1.19.0 or greater, as they are using LLVM 4.0. If you are not sure whether your Rust version will work, check the LLVM version used by running `rustc -vV`.
 
