@@ -26,8 +26,17 @@ impl Weatherstation {
         thread::spawn(move || {
             let mut cont;
             loop {
-                cont = Weatherstation::handle_message(station.receiver.recv().unwrap(),
-                                                      station.name);
+                match station.receiver.recv().unwrap() {
+                    ControlMessage::Record(w) => {
+                        println!("[{}] The weather today: {:?}", name, w);
+                        cont = true;
+                    }
+                    ControlMessage::Shutdown(sender) => {
+                        println!("[{}] Shutting down.", name);
+                        let _ = sender.send(());
+                        cont = false;
+                    }
+                }
 
                 // stop the thread after receiving the shutdown signal
                 if !cont {
