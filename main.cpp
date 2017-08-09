@@ -103,11 +103,12 @@ int main(int argc, char** argv) {
 
 
     // start the analysis
-    std::cout << "[INFO] Starting Analysis..." << std::endl;
+    outs() << "[INFO] Starting Analysis...\n";
     std::forward_list<std::pair<MessagingNode*, MessagingNode*>> node_pairs = analyzeNodes(sends, recvs);
 
-    for (std::pair<MessagingNode*, MessagingNode*> pair: node_pairs)
-        std::cout << "[matched] " << pair.first->type << " --> " << pair.second->type << std::endl;
+    if (VerboseOutput)
+        for (std::pair<MessagingNode*, MessagingNode*> pair: node_pairs)
+            std::cout << "[matched] " << pair.first->type << " --> " << pair.second->type << std::endl;
 
     visualize(&node_pairs, OutputPath);
     return 0;

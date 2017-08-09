@@ -1,5 +1,7 @@
 #include "visualizer.hpp"
 
+using namespace llvm;
+
 MessageMap buildMessageMap(const std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* node_pairs) {
     MessageMap mmap = MessageMap();
     for (std::pair<MessagingNode*, MessagingNode*> pair: *node_pairs) {
@@ -36,7 +38,7 @@ void visualize(const std::forward_list<std::pair<MessagingNode*, MessagingNode*>
     std::ofstream graph_file(output_path.c_str());
     if (graph_file.good()) {
         // Output file open, let's get started
-        std::cout << "[INFO] Started writing the message graph...  ";
+        outs() << "[INFO] Started writing the message graph...  ";
 
         graph_file << "digraph \"Generated Message Graph\" {" << std::endl \
         << "\tlabel=\"Generated Message Graph\";" << std::endl << std::endl;
@@ -56,7 +58,7 @@ void visualize(const std::forward_list<std::pair<MessagingNode*, MessagingNode*>
 
         graph_file.close();
 
-        std::cout << "Done!" << std::endl;
+        outs() << "Done!\n";
     }
     else
         std::cerr << "[ERROR] Could not open output file!" << std::endl;

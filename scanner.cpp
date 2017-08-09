@@ -200,23 +200,34 @@ inline std::string getNamespace(const Function* func) {
     return func->getParent()->getName().str();
 }
 
-
+/**
+ Things to improve:
+    - recognition and handling of PHI nodes -> there would be only a single immediate use case for it
+    - recognition and handling of "unwrap" operations (unwrapping result and option types) -> necessary?
+    - there are some operations we are currently not equipped to handle
+    - trace enders that send optionals/results?
+    - get some structure into the function
+    - how to save the values?
+ */
 StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set<Value*>* been_there) {
     // this set keeps book about the statements we have seen so far to detect loops
     if (been_there->find(val) == been_there->end())
         been_there->insert(val);
-    else {
-        errs() << "Been there, done that. No way.\n";
+    else
         return nullptr;
-    }
 
-//    errs() << "Inspect: " << *val << "\n" << val->getNumUses() << " uses:\n";
+//    outs() << "Inspect: " << *val << "\n" << val->getNumUses() << " uses:\n";
 //    for (User* u: val->users()) {
-//        errs() << *u << "\n";
+//        outs() << *u << "\n";
 //    }
+//    outs() << "\n";
 
 
     // hacky workarounds:
+    // emit information about detected phi nodes for debugging purposes
+    if (PHINode* pn = dyn_cast<PHINode>(val))
+        outs() << "[PHI] Found a phi node!\n    " << pn->getModule()->getName() << "\n";
+
     if (BitCastInst* bi = dyn_cast<BitCastInst>(val)) {
         StoreInst* deep_store_inst = getRelevantStoreFromValue(bi->getOperand(0), val, been_there);
         if (deep_store_inst != nullptr)
@@ -227,13 +238,16 @@ StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set
         if (deep_store_inst != nullptr)
             return deep_store_inst;
     }
+
     for (User* u: val->users()) {
         if (LoadInst* li = dyn_cast<LoadInst>(u)) {
+//            li->dump();
             StoreInst* deep_store_inst = getRelevantStoreFromValue(li->getPointerOperand(), val, been_there);
             if (deep_store_inst != nullptr)
                 return deep_store_inst;
         }
         if (StoreInst* si = dyn_cast<StoreInst>(u)) {
+//            si->dump();
             // we are done after having found a constant assignment
             if (isa<ConstantInt>(si->getValueOperand()))
                 return si;
@@ -244,6 +258,7 @@ StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set
             }
         }
         if (BitCastInst* bi = dyn_cast<BitCastInst>(u)) {
+//            bi->dump();
             StoreInst* deep_store_inst;
             if (bi->getOperand(0) == val)
                 deep_store_inst = getRelevantStoreFromValue(bi, val, been_there);
@@ -256,6 +271,12 @@ StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set
         if (AllocaInst* ai = dyn_cast<AllocaInst>(u))
             continue;
         if (MemTransferInst* mi = dyn_cast<MemTransferInst>(u)) {
+//            mi->dump();
+//            // begin debug
+//            errs() << "Raw Source: " << *mi->getRawSource() << "\n";
+//            errs() << "Raw Dest: " << *mi->getRawDest() << "\n";
+//            // end
+
             StoreInst* deep_store_inst;
             if (mi->getRawDest() == val)
                 deep_store_inst = getRelevantStoreFromValue(mi->getRawSource(), val, been_there);
@@ -266,6 +287,7 @@ StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set
                 return deep_store_inst;
         }
         if (GetElementPtrInst* gi = dyn_cast<GetElementPtrInst>(u)) {
+//            gi->dump();
             StoreInst* deep_store_inst = getRelevantStoreFromValue(gi, val, been_there);
             if (deep_store_inst != nullptr)
                 return deep_store_inst;
@@ -282,8 +304,6 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
 
     // Iterate through all functions through all basic blocks over every instruction within the modules
     for (Function& func: module->getFunctionList())
-        // TODO: maybe make this an opt-in thingy via CLI option?
-        // func.viewCFG();
         for (BasicBlock& bb: func.getBasicBlockList())
             for (Instruction& instr: bb.getInstList())
                 if (InvokeInst* ii = dyn_cast<InvokeInst>(&instr))
@@ -296,6 +316,9 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                             break;
 
                         // Instruction *is* sending something
+                        // TODO: We still need a better way of identifying the sender. The current approach works,
+                        //       but only because some instructions, which pass the check (even if they shouldn't)
+                        //       are filtered out later on.
                         if (isSend(demangled_name)) {
                             // unfortunately, some instructions that match here are no "real" sends so we have
                             // to filter them out by trying to find the sender struct, since these "false sends" don't have one
@@ -314,23 +337,24 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                             // if a "real" send has been found, try to get more information about the transmitted value
                             // TODO: only check the sent values if type != ()
                             if (real_send && sends.front().type != "()") {
-                                std::cout << "Found a 'real' send in instruction:" << std::endl;
-
-                                ii->dump();
+//                                std::cout << "Found a 'real' send in instruction:" << std::endl;
+//
+//                                ii->dump();
                                 Value* a = ii->getArgOperand(ii->getNumArgOperands() - 1);
-                                errs() << "Identified argument " << *a << "\n";
+                                outs() << "[DEBUG] Identified argument " << *a << "\n";
 
-                                std::cout << "[DEBUG] Getting relevant store instruction(s)" << std::endl;
+//                                outs() << "[DEBUG] Getting relevant store instruction(s)\n";
                                 std::unordered_set<Value*> been_there {};
                                 StoreInst* si = getRelevantStoreFromValue(a, nullptr, &been_there);
                                 if (si == nullptr)
-                                    std::cerr << "[ERROR] No store instruction found!" << std::endl;
+                                    outs() << "[ERROR] No store instruction found!\n" \
+                                           << "        Module: " << ii->getModule()->getName() << "\n" \
+                                           << "        Instruction: " << *ii << "\n";
                                 else {
                                     if (ConstantInt* assigned_number = dyn_cast<ConstantInt>(si->getValueOperand()))
-                                        outs() << "[INFO] Found a viable assignment: " << assigned_number->getValue() << " is assigned.\n";
+                                        outs() << "[SUCCESS] Found a viable assignment: " << assigned_number->getValue() << " is assigned.\n";
                                     else
-                                        errs() << "[ERR] Could only find: " << *si << "\n";
-//                                    std::cout << " -- " << si->getPointerOperand()->isUsedByMetadata() << std::endl;
+                                        errs() << "[ERR] Could only find: " << *si << "\n";  // TODO: Can be removed since this is checked in the function now
                                 }
                             }
                         }
