@@ -11,12 +11,21 @@ using namespace llvm;
  @return `true`, if the function is a send instruction.
  */
 bool isSend(std::string demangled_invoke) {
-    std::forward_list<std::string> sends {"$LT$std..sync..mpsc..Sender$LT$T$GT$$GT$::send", \
-        "$LT$ipc_channel..ipc..IpcSender$LT$T$GT$$GT$::send"};
+    std::forward_list<std::string> sends {"$LT$std..sync..mpsc..Sender$LT$T$GT$$GT$::send::", \
+        "$LT$ipc_channel..ipc..IpcSender$LT$T$GT$$GT$::send::"};
 
-    for (std::string send_instr: sends)
-        if (demangled_invoke.find(send_instr) != std::string::npos)
-            return true;
+    for (std::string send_instr: sends) {
+        unsigned long position = demangled_invoke.find(send_instr);
+        if (position != std::string::npos) {
+            // sometimes, a closure is called within the send/recv
+            // -> to avoid wrong matches, check the suffix of the match for another namespace
+            std::string suffix = demangled_invoke.substr(position + send_instr.size(), demangled_invoke.size());
+            if (suffix.find("::") == std::string::npos)
+                return true;
+            else
+                return false;
+        }
+    }
 
     return false;
 }
@@ -59,14 +68,21 @@ const char* getSentType(std::string struct_name) {
  @return `true`, if the function is a receive instruction.
  */
 bool isRecv(std::string demangled_invoke) {
-    std::forward_list<std::string> recvs {"$LT$std..sync..mpsc..Receiver$LT$T$GT$$GT$::recv", \
-        "$LT$std..sync..mpsc..Receiver$LT$T$GT$$GT$::try_recv", \
-        "$LT$ipc_channel..ipc..IpcReceiver$LT$T$GT$$GT$::recv", \
-        "$LT$ipc_channel..ipc..IpcReceiver$LT$T$GT$$GT$::try_recv"};
+    std::forward_list<std::string> recvs {"$LT$std..sync..mpsc..Receiver$LT$T$GT$$GT$::recv::", \
+        "$LT$std..sync..mpsc..Receiver$LT$T$GT$$GT$::try_recv::", \
+        "$LT$ipc_channel..ipc..IpcReceiver$LT$T$GT$$GT$::recv::", \
+        "$LT$ipc_channel..ipc..IpcReceiver$LT$T$GT$$GT$::try_recv::"};
 
-    for (std::string recv_instr: recvs)
-        if (demangled_invoke.find(recv_instr) != std::string::npos)
-            return true;
+    for (std::string recv_instr: recvs) {
+        unsigned long position = demangled_invoke.find(recv_instr);
+        if (position != std::string::npos) {
+            std::string suffix = demangled_invoke.substr(position + recv_instr.size(), demangled_invoke.size());
+            if (suffix.find("::") == std::string::npos)
+                return true;
+            else
+                return false;
+        }
+    }
 
     return false;
 }
@@ -205,7 +221,7 @@ inline std::string getNamespace(const Function* func) {
     - recognition and handling of PHI nodes -> there would be only a single immediate use case for it
     - recognition and handling of "unwrap" operations (unwrapping result and option types) -> necessary?
     - there are some operations we are currently not equipped to handle
-    - trace enders that send optionals/results?
+    - trace senders that send optionals/results?
     - get some structure into the function
     - how to save the values?
  */
@@ -294,7 +310,15 @@ StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set
         }
     }
 
+//    outs() << "[WARN] Unhandled value type: " << *val << "\n";
+
     return nullptr;
+}
+
+
+void analyzeReceiveInst(Value* val) {
+    // follow the instruction types
+    // identify and handle unwrap operations!
 }
 
 
@@ -316,34 +340,25 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                             break;
 
                         // Instruction *is* sending something
-                        // TODO: We still need a better way of identifying the sender. The current approach works,
-                        //       but only because some instructions, which pass the check (even if they shouldn't)
-                        //       are filtered out later on.
                         if (isSend(demangled_name)) {
-                            // unfortunately, some instructions that match here are no "real" sends so we have
-                            // to filter them out by trying to find the sender struct, since these "false sends" don't have one
-                            bool real_send = false;
-                            for (Argument& arg: ii->getCalledFunction()->getArgumentList()) {
-                                if (isa<PointerType>(arg.getType())) {
-                                    std::string struct_name = cast<PointerType>(arg.getType())->getElementType()->getStructName().str();
-                                    if (const char* sent_type = getSentType(std::move(struct_name))) {
-                                        // save the send instruction for matching later on
-                                        sends.push_front(MessagingNode {ii, sent_type, getNamespace(&func)});
-                                        real_send = true;
-                                    }
-                                }
-                            }
+                            // the argument to check is determined by whether the first argument is the return value or not
+                            std::string struct_name;
+                            if (ii->hasStructRetAttr())
+                                struct_name = cast<PointerType>(ii->getArgOperand(1)->getType())->getElementType()->getStructName().str();
+                            else
+                                struct_name = cast<PointerType>(ii->getArgOperand(0)->getType())->getElementType()->getStructName().str();
 
-                            // if a "real" send has been found, try to get more information about the transmitted value
-                            // TODO: only check the sent values if type != ()
-                            if (real_send && sends.front().type != "()") {
-//                                std::cout << "Found a 'real' send in instruction:" << std::endl;
-//
-//                                ii->dump();
+                            // ignore any failures when extracting the types by simply skipping the value
+                            if (const char* sent_type = getSentType(std::move(struct_name)))
+                                sends.push_front(MessagingNode {ii, sent_type, getNamespace(&func)});
+                            else
+                                continue;
+
+                            // for further analysis, ignore senders of type "()"
+                            if (sends.front().type != "()") {
                                 Value* a = ii->getArgOperand(ii->getNumArgOperands() - 1);
                                 outs() << "[DEBUG] Identified argument " << *a << "\n";
 
-//                                outs() << "[DEBUG] Getting relevant store instruction(s)\n";
                                 std::unordered_set<Value*> been_there {};
                                 StoreInst* si = getRelevantStoreFromValue(a, nullptr, &been_there);
                                 if (si == nullptr)
@@ -359,15 +374,17 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                             }
                         }
                         else if (isRecv(demangled_name)) {
-                            for (Argument& arg: ii->getCalledFunction()->getArgumentList()) {
-                                if (isa<PointerType>(arg.getType())) {
-                                    std::string struct_name = cast<PointerType>(arg.getType())->getElementType()->getStructName().str();
-                                    if (const char* type = getReceivedType(std::move(struct_name))) {
-                                        // save the receive instruction for matching later on
-                                        recvs.push_front(MessagingNode {ii, type, getNamespace(&func)});
-                                    }
-                                }
-                            }
+                            // functionality similar to the branch above
+                            std::string struct_name;
+                            if (ii->hasStructRetAttr())
+                                struct_name = cast<PointerType>(ii->getArgOperand(1)->getType())->getElementType()->getStructName().str();
+                            else
+                                struct_name = cast<PointerType>(ii->getArgOperand(0)->getType())->getElementType()->getStructName().str();
+
+                            if (const char* recv_type = getSentType(std::move(struct_name)))
+                                recvs.push_front(MessagingNode {ii, recv_type, getNamespace(&func)});
+                            else
+                                continue;
                         }
                     }
 
