@@ -381,10 +381,13 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                             else
                                 struct_name = cast<PointerType>(ii->getArgOperand(0)->getType())->getElementType()->getStructName().str();
 
-                            if (const char* recv_type = getSentType(std::move(struct_name)))
+                            if (const char* recv_type = getReceivedType(std::move(struct_name)))
                                 recvs.push_front(MessagingNode {ii, recv_type, getNamespace(&func)});
                             else
                                 continue;
+
+                            // perform the receiver-side analysis
+                            analyzeReceiveInst(ii);
                         }
                     }
 
