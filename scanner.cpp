@@ -88,7 +88,16 @@ bool isRecv(std::string demangled_invoke) {
 }
 
 
-bool isUnwrap(std::string demangled_invoke) {
+bool isUnwrap(InvokeInst* ii) {
+    // first, demangle the function name
+    int s;
+    const char* demangled_name = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
+    if (s != 0) {
+        errs() << "[ERROR] Failed to demangle function name of " << ii->getName() << "\n";
+        return false;
+    }
+
+    std::string demangled_invoke = demangled_name;
     unsigned long position = demangled_invoke.find("$LT$core..result..Result$LT$T$C$$u20$E$GT$$GT$::unwrap::");
     if (position != std::string::npos)
         return true;
@@ -388,14 +397,8 @@ void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there, std:
             outs() << "[DONE] Found unwrap/relevant switch block.\n";
         }
         else if (InvokeInst* ii = dyn_cast<InvokeInst>(u)) {
-            // first, demangle the function name to be able to check what function we are looking at
-            int s;
-            const char* demangled_name = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
-            if (s != 0)
-                errs() << "[ERROR] Failed to demangle function name of " << ii->getName() << "\n";
-
-
-            if (isUnwrap(demangled_name)) {
+            if (isUnwrap(ii)) {
+                outs() << "    -> marked current node as IOI.\n";
                 possible_matches->insert({ii->getParent(), ii});
                 if (ii->hasStructRetAttr()) {
                     been_there->insert(ii);
@@ -404,10 +407,11 @@ void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there, std:
                 else
                     analyzeReceiveInst(ii, been_there, possible_matches);
             }
-            else if (been_there->find(ii) != been_there->end()){
+            else if (been_there->find(ii) == been_there->end()){
                 been_there->insert(ii);
                 possible_matches->insert({ii->getParent(), ii});
                 outs() << "[INFO] Possible message handler detected: " << *ii << "\n";
+                outs() << "       -> marked current node as IOI.\n";
             }
 
         }
@@ -416,16 +420,23 @@ void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there, std:
 }
 
 
-std::pair<UsageType, Instruction*>* findUsageInstruction(BasicBlock* bb, std::unordered_map<BasicBlock*, Instruction*>* possible_matches, bool valueUnwrapped) {
+std::pair<UsageType, Instruction*>* findUsageInstruction(BasicBlock* bb, std::unordered_map<BasicBlock*, Instruction*>* possible_matches, bool valueUnwrapped, Instruction* last_hit) {
+    outs() << "  Now checking: " << bb->getName() << "\n";
+    // stop when no instructions to check are left
     if (possible_matches->size() == 0) {
         outs() << "[WARN] All matches have been checked.\n";
-        return nullptr;
+        if (valueUnwrapped)
+            return new std::pair<UsageType, Instruction*>(UnwrappedDirectUse, last_hit);
+        else
+            return new std::pair<UsageType, Instruction*>(DirectUse, nullptr);
     }
 
+    // TODO: Can Basic Blocks have 0 successors?
     if (BasicBlock* next_bb = bb->getSingleSuccessor()) {
         // if a basic block only has a single successor we can skip it as the relevant
         // BBs have 2+ successors (due to the nature of switch/invoke instructions)
-        return findUsageInstruction(next_bb, possible_matches, valueUnwrapped);
+        outs() << "    -> skipping to next BB\n";
+        return findUsageInstruction(next_bb, possible_matches, valueUnwrapped, last_hit);
     }
     else {
         // we have to handle multiple successors
@@ -436,35 +447,44 @@ std::pair<UsageType, Instruction*>* findUsageInstruction(BasicBlock* bb, std::un
                 outs() << "[INFO] Found a switch instruction.";
                 if (valueUnwrapped) {
                     outs() << " Value already unwrapped. Done.\n" << *inst << "\n";
-                    return new std::pair<UsageType, Instruction*>(UnwrappedSwitch, inst);
+                    return new std::pair<UsageType, Instruction*>(UnwrappedToSwitch, inst);
                 }
                 else {
                     outs() << " Is value unwrap. \n" << *inst << "\n";
                     possible_matches->erase(bb);
-                    return findUsageInstruction(si->getSuccessor(0), possible_matches, true);
+                    return findUsageInstruction(si->getSuccessor(1), possible_matches, true, inst);
                 }
             }
             else if (InvokeInst* ii = dyn_cast<InvokeInst>(inst)) {
                 outs() << "[INFO] Found a function invocation.";
                 if (valueUnwrapped) {
                     outs() << " Value already unwrapped. Done.\n" << *inst << "\n";
-                    return new std::pair<UsageType, Instruction*>(UnwrappedSwitch, inst);
+                    return new std::pair<UsageType, Instruction*>(UnwrappedToHandlerFunction, inst);
                 }
                 else {
-                    outs() << " Is value unwrap. \n" << *ii << "\n";
-                    possible_matches->erase(bb);
-                    return findUsageInstruction(ii->getSuccessor(0), possible_matches, true);
+                    if (isUnwrap(ii)) {
+                        outs() << " Is value unwrap. \n" << *ii << "\n";
+                        possible_matches->erase(bb);
+                        return findUsageInstruction(ii->getSuccessor(0), possible_matches, true, inst);
+                    }
+                    else {
+                        outs() << " Is direct handler function call.\n" << *ii << "\n";
+                        possible_matches->erase(bb);
+                        return new std::pair<UsageType, Instruction*>(DirectHandlerCall, inst);
+                    }
+
                 }
             }
         }
         else {
             // check every successor of the current basic block as we do not know what causes the split here
-            std::pair<UsageType, Instruction*>* result;
+            std::pair<UsageType, Instruction*>* result = new std::pair<UsageType, Instruction*>(DirectUse, nullptr);
             for (BasicBlock* next_bb: bb->getTerminator()->successors()) {
-                result = findUsageInstruction(next_bb, possible_matches, valueUnwrapped);
-                if (result != nullptr)
-                    return result;
+                std::pair<UsageType, Instruction*>* tmp_result = findUsageInstruction(next_bb, possible_matches, valueUnwrapped, last_hit);
+                if (tmp_result->first >= result->first)
+                    result = tmp_result;
             }
+            return result;
         }
     }
     return nullptr;
@@ -476,12 +496,34 @@ void analyzeReceiver(InvokeInst* ii) {
     std::unordered_set<Value*> been_there {};
     // this map will contain all possible unwrap/handle operations which will be sorted out later
     std::unordered_map<BasicBlock*, Instruction*> possible_matches {};
-    
+
+    outs() << "[INFO] Analyzing receive Instruction...\n";
+
     analyzeReceiveInst(ii, &been_there, &possible_matches);
+
+    outs() << "[INFO] Finding the relevant usage...\n";
 
     // now sort out the previously filtered instructions by traversing the Control Flow Graph,
     // starting at the first Basic block after the `receive` function was called
-    findUsageInstruction(ii->getSuccessor(0), &possible_matches, false);
+    std::pair<UsageType, Instruction*>* usage = findUsageInstruction(ii->getSuccessor(0), &possible_matches, false, nullptr);
+
+    switch (usage->first) {
+        case DirectUse:
+            outs() << "[INFO] Received value is used directly, no control-flow branching detected.\n";
+            break;
+        case DirectHandlerCall:
+            outs() << "[INFO] Received value is directly passed to handler function:\n" << *usage->second << "\n";
+            break;
+        case UnwrappedDirectUse:
+            outs() << "[INFO] Received value is unwrapped und used without further control-flow branching.\n";
+            break;
+        case UnwrappedToHandlerFunction:
+            outs() << "[INFO] Received value is unwrapped and passed to handler function:\n" << *usage->second << "\n";
+            break;
+        case UnwrappedToSwitch:
+            outs() << "[INFO] Received value is unwrapped, control-flow branches here:\n" << *usage->second << "\n";
+            break;
+    }
 }
 
 

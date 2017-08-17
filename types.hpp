@@ -16,9 +16,11 @@ typedef std::unordered_map<std::string, std::forward_list<std::pair<std::string,
 
 
 enum UsageType {
-    DirectUse,
-    UnwrappedHandlerFunction,
-    UnwrappedSwitch
+    DirectUse,                  ///< The received value is being used directly in the function, no unwrap involved.
+    DirectHandlerCall,          ///< The value is passed directly into a handler function.
+    UnwrappedDirectUse,         ///< The received value is unwrapped and used directly.
+    UnwrappedToHandlerFunction, ///< The unwrapped value is used as argument to a handler function.
+    UnwrappedToSwitch           ///< The unwrapped value is used in a switch statement.
 };
 
 #endif /* types_hpp */
