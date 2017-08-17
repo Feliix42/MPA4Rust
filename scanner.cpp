@@ -88,6 +88,15 @@ bool isRecv(std::string demangled_invoke) {
 }
 
 
+bool isUnwrap(std::string demangled_invoke) {
+    unsigned long position = demangled_invoke.find("$LT$core..result..Result$LT$T$C$$u20$E$GT$$GT$::unwrap::");
+    if (position != std::string::npos)
+        return true;
+    else
+        return false;
+}
+
+
 /**
  Function that extracts the type of the message that is being received over the channel
  by inspecting the type of the receiver.
@@ -218,6 +227,7 @@ inline std::string getNamespace(const Function* func) {
 
 /**
  Things to improve:
+    - do we need the `prev` argument?
     - recognition and handling of PHI nodes -> there would be only a single immediate use case for it
     - recognition and handling of "unwrap" operations (unwrapping result and option types) -> necessary?
     - there are some operations we are currently not equipped to handle
@@ -316,9 +326,104 @@ StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set
 }
 
 
-void analyzeReceiveInst(Value* val) {
+void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there) {
+    if (been_there->find(val) == been_there->end())
+        been_there->insert(val);
+    else
+        return;
+
     // follow the instruction types
     // identify and handle unwrap operations!
+    outs() << "[A-RECV] Current value: " << *val << "\n" \
+           << "    -> Users: \n";
+    for (User* u: val->users())
+        outs() << "        " << *u << "\n";
+
+    // the current value is an invoke instruction (e.g. a `receive` call or an unwrap etc)
+    if (InvokeInst* ii = dyn_cast<InvokeInst>(val)) {
+        // first, demangle the function name to be able to check what function we are looking at
+        int s;
+        const char* demangled_name = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
+        if (s != 0)
+            errs() << "[ERROR] Failed to demangle function name of " << ii->getName() << "\n";
+
+        if (isRecv(demangled_name))
+            // if the instruction is the receive (this is always true for the instruction we start with), follow the return value
+            if (ii->hasStructRetAttr())
+                analyzeReceiveInst(ii->getArgOperand(0), been_there);
+    }
+    else if (BitCastInst* bi = dyn_cast<BitCastInst>(val))
+        analyzeReceiveInst(bi->getOperand(0), been_there);
+
+    for (User* u: val->users()) {
+        if (StoreInst* si = dyn_cast<StoreInst>(u)) {
+            if (si->getPointerOperand() != val) // this might be redundant?
+                 analyzeReceiveInst(si->getPointerOperand(), been_there);
+//                outs() << "[ERROR] Should've accessed value operand.\n";
+            else
+                analyzeReceiveInst(si->getValueOperand(), been_there);
+        }
+        else if (LoadInst* li = dyn_cast<LoadInst>(u)) {
+            analyzeReceiveInst(li, been_there);
+            if (li->getPointerOperand() != val)
+                analyzeReceiveInst(li->getPointerOperand(), been_there);
+        }
+        else if (BitCastInst* bi = dyn_cast<BitCastInst>(u)) {
+            analyzeReceiveInst(bi, been_there);
+            if (bi->getOperand(0) != val)
+                analyzeReceiveInst(bi->getOperand(0), been_there);
+        }
+        else if (MemTransferInst* mi = dyn_cast<MemTransferInst>(u)) {
+            analyzeReceiveInst(mi->getRawDest(), been_there);
+            if (mi->getRawSource() != val)
+                analyzeReceiveInst(mi->getRawSource(), been_there);
+        }
+        else if (GetElementPtrInst* gi = dyn_cast<GetElementPtrInst>(u)) {
+            analyzeReceiveInst(gi, been_there);
+        }
+        else if (ZExtInst* zi = dyn_cast<ZExtInst>(u)) {
+            analyzeReceiveInst(zi, been_there);
+        }
+        else if (SwitchInst* si = dyn_cast<SwitchInst>(u)) {
+//            // this instruction has two different contexts:
+//            //      it either unwraps something or it handles the received value
+//            if (!valueUnwrapped) {
+//                // this is the unwrapping of the received "Result" value
+//                for (SwitchInst::CaseIt cse: si->cases())
+//                    outs() << "      Successor: " << *cse.getCaseSuccessor() << "\n";
+//                outs() << "      Successor: " << *si->case_default().getCaseSuccessor() << "\n";
+//            }
+//            else {
+//                // this is the switch that determined what happens based on the received message
+//            }
+            outs() << "[DONE] Found unwrap/relevant switch block.\n";
+        }
+        else if (InvokeInst* ii = dyn_cast<InvokeInst>(u)) {
+            // first, demangle the function name to be able to check what function we are looking at
+            int s;
+            const char* demangled_name = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
+            if (s != 0)
+                errs() << "[ERROR] Failed to demangle function name of " << ii->getName() << "\n";
+
+
+            if (isUnwrap(demangled_name)) {
+                if (ii->hasStructRetAttr()) {
+                    been_there->insert(ii);
+                    analyzeReceiveInst(ii->getArgOperand(0), been_there);
+                }
+                else
+                    analyzeReceiveInst(ii, been_there);
+            }
+            else if (been_there->find(ii) != been_there->end()){
+                been_there->insert(ii);
+                outs() << "[INFO] Possible message handler detected: " << *ii << "\n";
+            }
+
+        }
+    }
+
+    // first, find out, which operations are of interest (e.g., unwrapping Optionals and Results, bitcasts assignments, etc)
+    // then, trace them until it is used in a function call or a switch statement. quit there (for now)
 }
 
 
@@ -387,7 +492,10 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                                 continue;
 
                             // perform the receiver-side analysis
-                            analyzeReceiveInst(ii);
+                            if (recvs.front().type != "()") {
+                                std::unordered_set<Value*> been_there {};
+                                analyzeReceiveInst(ii, &been_there);
+                            }
                         }
                     }
 
