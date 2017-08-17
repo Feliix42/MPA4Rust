@@ -326,7 +326,7 @@ StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set
 }
 
 
-void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there) {
+void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there, std::unordered_map<BasicBlock*, Instruction*>* possible_matches) {
     if (been_there->find(val) == been_there->end())
         been_there->insert(val);
     else
@@ -350,52 +350,41 @@ void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there) {
         if (isRecv(demangled_name))
             // if the instruction is the receive (this is always true for the instruction we start with), follow the return value
             if (ii->hasStructRetAttr())
-                analyzeReceiveInst(ii->getArgOperand(0), been_there);
+                analyzeReceiveInst(ii->getArgOperand(0), been_there, possible_matches);
     }
     else if (BitCastInst* bi = dyn_cast<BitCastInst>(val))
-        analyzeReceiveInst(bi->getOperand(0), been_there);
+        analyzeReceiveInst(bi->getOperand(0), been_there, possible_matches);
 
     for (User* u: val->users()) {
         if (StoreInst* si = dyn_cast<StoreInst>(u)) {
-            if (si->getPointerOperand() != val) // this might be redundant?
-                 analyzeReceiveInst(si->getPointerOperand(), been_there);
-//                outs() << "[ERROR] Should've accessed value operand.\n";
+            if (si->getPointerOperand() != val) // TODO: this might be redundant?
+                 analyzeReceiveInst(si->getPointerOperand(), been_there, possible_matches);
             else
-                analyzeReceiveInst(si->getValueOperand(), been_there);
+                analyzeReceiveInst(si->getValueOperand(), been_there, possible_matches);
         }
         else if (LoadInst* li = dyn_cast<LoadInst>(u)) {
-            analyzeReceiveInst(li, been_there);
+            analyzeReceiveInst(li, been_there, possible_matches);
             if (li->getPointerOperand() != val)
-                analyzeReceiveInst(li->getPointerOperand(), been_there);
+                analyzeReceiveInst(li->getPointerOperand(), been_there, possible_matches);
         }
         else if (BitCastInst* bi = dyn_cast<BitCastInst>(u)) {
-            analyzeReceiveInst(bi, been_there);
+            analyzeReceiveInst(bi, been_there, possible_matches);
             if (bi->getOperand(0) != val)
-                analyzeReceiveInst(bi->getOperand(0), been_there);
+                analyzeReceiveInst(bi->getOperand(0), been_there, possible_matches);
         }
         else if (MemTransferInst* mi = dyn_cast<MemTransferInst>(u)) {
-            analyzeReceiveInst(mi->getRawDest(), been_there);
+            analyzeReceiveInst(mi->getRawDest(), been_there, possible_matches);
             if (mi->getRawSource() != val)
-                analyzeReceiveInst(mi->getRawSource(), been_there);
+                analyzeReceiveInst(mi->getRawSource(), been_there, possible_matches);
         }
         else if (GetElementPtrInst* gi = dyn_cast<GetElementPtrInst>(u)) {
-            analyzeReceiveInst(gi, been_there);
+            analyzeReceiveInst(gi, been_there, possible_matches);
         }
         else if (ZExtInst* zi = dyn_cast<ZExtInst>(u)) {
-            analyzeReceiveInst(zi, been_there);
+            analyzeReceiveInst(zi, been_there, possible_matches);
         }
         else if (SwitchInst* si = dyn_cast<SwitchInst>(u)) {
-//            // this instruction has two different contexts:
-//            //      it either unwraps something or it handles the received value
-//            if (!valueUnwrapped) {
-//                // this is the unwrapping of the received "Result" value
-//                for (SwitchInst::CaseIt cse: si->cases())
-//                    outs() << "      Successor: " << *cse.getCaseSuccessor() << "\n";
-//                outs() << "      Successor: " << *si->case_default().getCaseSuccessor() << "\n";
-//            }
-//            else {
-//                // this is the switch that determined what happens based on the received message
-//            }
+            possible_matches->insert({si->getParent(), si});
             outs() << "[DONE] Found unwrap/relevant switch block.\n";
         }
         else if (InvokeInst* ii = dyn_cast<InvokeInst>(u)) {
@@ -407,23 +396,92 @@ void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there) {
 
 
             if (isUnwrap(demangled_name)) {
+                possible_matches->insert({ii->getParent(), ii});
                 if (ii->hasStructRetAttr()) {
                     been_there->insert(ii);
-                    analyzeReceiveInst(ii->getArgOperand(0), been_there);
+                    analyzeReceiveInst(ii->getArgOperand(0), been_there, possible_matches);
                 }
                 else
-                    analyzeReceiveInst(ii, been_there);
+                    analyzeReceiveInst(ii, been_there, possible_matches);
             }
             else if (been_there->find(ii) != been_there->end()){
                 been_there->insert(ii);
+                possible_matches->insert({ii->getParent(), ii});
                 outs() << "[INFO] Possible message handler detected: " << *ii << "\n";
             }
 
         }
     }
+    // TODO: Add case for Optionals(?) and received result types, i.e. Receiver<Result<bool>>(?)
+}
 
-    // first, find out, which operations are of interest (e.g., unwrapping Optionals and Results, bitcasts assignments, etc)
-    // then, trace them until it is used in a function call or a switch statement. quit there (for now)
+
+std::pair<UsageType, Instruction*>* findUsageInstruction(BasicBlock* bb, std::unordered_map<BasicBlock*, Instruction*>* possible_matches, bool valueUnwrapped) {
+    if (possible_matches->size() == 0) {
+        outs() << "[WARN] All matches have been checked.\n";
+        return nullptr;
+    }
+
+    if (BasicBlock* next_bb = bb->getSingleSuccessor()) {
+        // if a basic block only has a single successor we can skip it as the relevant
+        // BBs have 2+ successors (due to the nature of switch/invoke instructions)
+        return findUsageInstruction(next_bb, possible_matches, valueUnwrapped);
+    }
+    else {
+        // we have to handle multiple successors
+        if (possible_matches->find(bb) != possible_matches->end()) {
+            // the basic block contains a possible match
+            Instruction* inst = possible_matches->at(bb);
+            if (SwitchInst* si = dyn_cast<SwitchInst>(inst)) {
+                outs() << "[INFO] Found a switch instruction.";
+                if (valueUnwrapped) {
+                    outs() << " Value already unwrapped. Done.\n" << *inst << "\n";
+                    return new std::pair<UsageType, Instruction*>(UnwrappedSwitch, inst);
+                }
+                else {
+                    outs() << " Is value unwrap. \n" << *inst << "\n";
+                    possible_matches->erase(bb);
+                    return findUsageInstruction(si->getSuccessor(0), possible_matches, true);
+                }
+            }
+            else if (InvokeInst* ii = dyn_cast<InvokeInst>(inst)) {
+                outs() << "[INFO] Found a function invocation.";
+                if (valueUnwrapped) {
+                    outs() << " Value already unwrapped. Done.\n" << *inst << "\n";
+                    return new std::pair<UsageType, Instruction*>(UnwrappedSwitch, inst);
+                }
+                else {
+                    outs() << " Is value unwrap. \n" << *ii << "\n";
+                    possible_matches->erase(bb);
+                    return findUsageInstruction(ii->getSuccessor(0), possible_matches, true);
+                }
+            }
+        }
+        else {
+            // check every successor of the current basic block as we do not know what causes the split here
+            std::pair<UsageType, Instruction*>* result;
+            for (BasicBlock* next_bb: bb->getTerminator()->successors()) {
+                result = findUsageInstruction(next_bb, possible_matches, valueUnwrapped);
+                if (result != nullptr)
+                    return result;
+            }
+        }
+    }
+    return nullptr;
+}
+
+
+void analyzeReceiver(InvokeInst* ii) {
+    // initialize the data structures for the analysis
+    std::unordered_set<Value*> been_there {};
+    // this map will contain all possible unwrap/handle operations which will be sorted out later
+    std::unordered_map<BasicBlock*, Instruction*> possible_matches {};
+    
+    analyzeReceiveInst(ii, &been_there, &possible_matches);
+
+    // now sort out the previously filtered instructions by traversing the Control Flow Graph,
+    // starting at the first Basic block after the `receive` function was called
+    findUsageInstruction(ii->getSuccessor(0), &possible_matches, false);
 }
 
 
@@ -493,8 +551,7 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
 
                             // perform the receiver-side analysis
                             if (recvs.front().type != "()") {
-                                std::unordered_set<Value*> been_there {};
-                                analyzeReceiveInst(ii, &been_there);
+                                analyzeReceiver(ii);
                             }
                         }
                     }
