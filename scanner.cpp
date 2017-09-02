@@ -88,24 +88,6 @@ bool isRecv(std::string demangled_invoke) {
 }
 
 
-bool isUnwrap(InvokeInst* ii) {
-    // first, demangle the function name
-    int s;
-    const char* demangled_name = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
-    if (s != 0) {
-        errs() << "[ERROR] Failed to demangle function name of " << ii->getName() << "\n";
-        return false;
-    }
-
-    std::string demangled_invoke = demangled_name;
-    unsigned long position = demangled_invoke.find("$LT$core..result..Result$LT$T$C$$u20$E$GT$$GT$::unwrap::");
-    if (position != std::string::npos)
-        return true;
-    else
-        return false;
-}
-
-
 /**
  Function that extracts the type of the message that is being received over the channel
  by inspecting the type of the receiver.
@@ -133,6 +115,24 @@ const char* getReceivedType(std::string struct_name) {
 }
 
 
+bool isResultUnwrap(InvokeInst* ii) {
+    // first, demangle the function name
+    int s;
+    const char* demangled_name = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
+    if (s != 0) {
+        errs() << "[ERROR] Failed to demangle function name of " << ii->getName() << "\n";
+        return false;
+    }
+
+    std::string demangled_invoke = demangled_name;
+    unsigned long position = demangled_invoke.find("$LT$core..result..Result$LT$T$C$$u20$E$GT$$GT$::unwrap::");
+    if (position != std::string::npos)
+        return true;
+    else
+        return false;
+}
+
+
 // TODO: This function has to be reworked
 //  --> get the users of the function that contains the send
 //      --> trace the tree back up until you find a thread (spawn)
@@ -140,97 +140,6 @@ const char* getReceivedType(std::string struct_name) {
 //  --> return a list!
 // TODO: Find cross-module stuff
 inline std::string getNamespace(const Function* func) {
-//    const Function* f = func;
-//    std::string name = "";
-//
-//    // TODO: Problems: Does not consider the function name itself atm.
-//    //          -> implement this to e.g. check for main function
-//    //          -> reliably find {{closure}} call (a.k.a. thread::spawn and thread::Builder::spawn
-//    //          -> multiple calls?
-//
-//    bool cont = true;
-//    int status;
-//    const char* function_name = itaniumDemangle(f->getName().str().c_str(), nullptr, nullptr, &status);
-//    if (status != 0)
-//        std::cout << "[ERROR] Couldn't demangle name of the function that contains the send." << std::endl;
-//    else {
-//        std::cout << "[DEBUG] Found in iteration 0: " << function_name << std::endl;
-//        std::cout << "[DEBUG] Subprogram name: " << f->getSubprogram()->getName().str() << std::endl;
-//        std::cout << "[DEBUG] Scope: " << f->getSubprogram()->getScope().resolve()->getName().str() << std::endl;
-//    }
-//
-//    int i = 1;
-//    while (cont) {
-//        bool new_found = false;
-//        std::cout << "  [DEBUG] # users: " << f->getNumUses() << std::endl;
-//        for (const User* u: f->users()) {
-//            const char* demangled_name;
-//            int s = -1;
-//
-//            if (const InvokeInst* ii = dyn_cast<InvokeInst>(u)) {
-//                demangled_name = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
-//                f = ii->getFunction();
-//                new_found = true;
-//            }
-//            else if (const CallInst* ci = dyn_cast<CallInst>(u)) {
-//                demangled_name = itaniumDemangle(ci->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
-//                f = ci->getFunction();
-//                new_found = true;
-//            }
-//            else {
-//                std::cerr << "ouch" << std::endl;
-//                u->dump();
-//            }
-//
-//
-//            if (s != 0)
-//                continue;
-//            else {
-//                std::cout << "[DEBUG] Found in iteration " << i << ": " << demangled_name << std::endl;
-//                name = f->getSubprogram()->getName().str();
-//                std::cout << "[DEBUG] Subprogram name: " << name << std::endl;
-//                std::cout << "[DEBUG] Scope: " << f->getSubprogram()->getScope().resolve()->getName().str() << std::endl;
-//            }
-//        }
-//
-//        //quit searching when no new users have been found
-//        if (!new_found)
-//            break;
-//
-//        if (name == "{{closure}}")
-//            cont = false;
-//
-//        i++;
-//    }
-
-    // TODO: I'm not yet satisfied with the way this function works.
-    // It seems that some parts of the namespace are replaced with an {{impl}}
-    // instead of the name of the struct the function is implemented for.
-    // Check, whether this can be "adjusted". -- Feliix42 (2017-07-17)
-//    std::stack<std::string> namestack;
-//
-//    DIScope* sc = func->getSubprogram()->getScope().resolve();
-//    namestack.push(sc->getName().str());
-//
-//    std::cout << "tree: " << sc->getName().str();
-//    while (sc->getScope().resolve()) {
-//        sc = sc->getScope().resolve();
-//        std::cout << " - " << sc->getName().str();
-//        namestack.push(sc->getName().str());
-//    }
-//    std::cout << std::endl;
-//
-//    // build the namespace string, append "::" between the separate namespace identifiers
-//    std::string ns = namestack.top();
-//    namestack.pop();
-//    while (namestack.size() > 0 && namestack.top() != "{{impl}}") {
-//        ns.append("::").append(namestack.top());
-//        namestack.pop();
-//    }
-//
-//    std::cout << "converted: " << ns << std::endl;
-//    return ns;
-
     return func->getParent()->getName().str();
 }
 
@@ -335,6 +244,18 @@ StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set
 }
 
 
+/**
+ Recursively iterates over the value produced by the receive instruction and the subsequent values
+ produced by bitcasts, load and store instructions, etc.
+ 
+ This function aims to find possible value unwraps (as every (try_)recv() returns a Result type) and
+ the concrete use of the value in a control flow decision (such as match statements and function
+ invocations. It collects these possible matches in an unordered map provided as function argument.
+
+ @param val The value to inspect, initially an InvokeInst.
+ @param been_there A set used to detect loops and avoid re-visiting nodes.
+ @param possible_matches This map collects the possible matches we will inspect later on.
+ */
 void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there, std::unordered_map<BasicBlock*, Instruction*>* possible_matches) {
     if (been_there->find(val) == been_there->end())
         been_there->insert(val);
@@ -343,10 +264,10 @@ void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there, std:
 
     // follow the instruction types
     // identify and handle unwrap operations!
-    outs() << "[A-RECV] Current value: " << *val << "\n" \
-           << "    -> Users: \n";
-    for (User* u: val->users())
-        outs() << "        " << *u << "\n";
+//    outs() << "[A-RECV] Current value: " << *val << "\n" \
+//           << "    -> Users: \n";
+//    for (User* u: val->users())
+//        outs() << "        " << *u << "\n";
 
     // the current value is an invoke instruction (e.g. a `receive` call or an unwrap etc)
     if (InvokeInst* ii = dyn_cast<InvokeInst>(val)) {
@@ -394,11 +315,11 @@ void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there, std:
         }
         else if (SwitchInst* si = dyn_cast<SwitchInst>(u)) {
             possible_matches->insert({si->getParent(), si});
-            outs() << "[DONE] Found unwrap/relevant switch block.\n";
+//            outs() << "[INFO] Found unwrap/relevant switch block.\n";
         }
         else if (InvokeInst* ii = dyn_cast<InvokeInst>(u)) {
-            if (isUnwrap(ii)) {
-                outs() << "    -> marked current node as IOI.\n";
+            if (isResultUnwrap(ii)) {
+//                outs() << "    -> marked current node as IOI.\n";
                 possible_matches->insert({ii->getParent(), ii});
                 if (ii->hasStructRetAttr()) {
                     been_there->insert(ii);
@@ -410,8 +331,8 @@ void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there, std:
             else if (been_there->find(ii) == been_there->end()){
                 been_there->insert(ii);
                 possible_matches->insert({ii->getParent(), ii});
-                outs() << "[INFO] Possible message handler detected: " << *ii << "\n";
-                outs() << "       -> marked current node as IOI.\n";
+//                outs() << "[INFO] Possible message handler detected: " << *ii << "\n";
+//                outs() << "       -> marked current node as IOI.\n";
             }
 
         }
@@ -420,8 +341,19 @@ void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there, std:
 }
 
 
+/**
+ This function takes the map of possible matches and the basic block after the recv() call and
+ then traverses the control flow graph in order to match the instructions from the possible_matches
+ set to the control flow graph and find the value unwraps and message usages.
+
+ @param bb The initial basic block to begin the search from.
+ @param possible_matches The map of possible matches generated from the `analyzeReceiveInst` function
+ @param valueUnwrapped Tracks wether the received value has been unwrapped yet.
+ @param last_hit Tracks the last matched value fro mthe possible matches.
+ @return The usage type and the corresponding instruction.
+ */
 std::pair<UsageType, Instruction*>* findUsageInstruction(BasicBlock* bb, std::unordered_map<BasicBlock*, Instruction*>* possible_matches, bool valueUnwrapped, Instruction* last_hit) {
-    outs() << "  Now checking: " << bb->getName() << "\n";
+//    outs() << "  Now checking: " << bb->getName() << "\n";
     // stop when no instructions to check are left
     if (possible_matches->size() == 0) {
         outs() << "[WARN] All matches have been checked.\n";
@@ -444,31 +376,31 @@ std::pair<UsageType, Instruction*>* findUsageInstruction(BasicBlock* bb, std::un
             // the basic block contains a possible match
             Instruction* inst = possible_matches->at(bb);
             if (SwitchInst* si = dyn_cast<SwitchInst>(inst)) {
-                outs() << "[INFO] Found a switch instruction.";
+//                outs() << "[INFO] Found a switch instruction.";
                 if (valueUnwrapped) {
-                    outs() << " Value already unwrapped. Done.\n" << *inst << "\n";
+//                    outs() << " Value already unwrapped. Done.\n" << *inst << "\n";
                     return new std::pair<UsageType, Instruction*>(UnwrappedToSwitch, inst);
                 }
                 else {
-                    outs() << " Is value unwrap. \n" << *inst << "\n";
+//                    outs() << " Is value unwrap. \n" << *inst << "\n";
                     possible_matches->erase(bb);
                     return findUsageInstruction(si->getSuccessor(1), possible_matches, true, inst);
                 }
             }
             else if (InvokeInst* ii = dyn_cast<InvokeInst>(inst)) {
-                outs() << "[INFO] Found a function invocation.";
+//                outs() << "[INFO] Found a function invocation.";
                 if (valueUnwrapped) {
-                    outs() << " Value already unwrapped. Done.\n" << *inst << "\n";
+//                    outs() << " Value already unwrapped. Done.\n" << *inst << "\n";
                     return new std::pair<UsageType, Instruction*>(UnwrappedToHandlerFunction, inst);
                 }
                 else {
-                    if (isUnwrap(ii)) {
-                        outs() << " Is value unwrap. \n" << *ii << "\n";
+                    if (isResultUnwrap(ii)) {
+//                        outs() << " Is value unwrap. \n" << *ii << "\n";
                         possible_matches->erase(bb);
                         return findUsageInstruction(ii->getSuccessor(0), possible_matches, true, inst);
                     }
                     else {
-                        outs() << " Is direct handler function call.\n" << *ii << "\n";
+//                        outs() << " Is direct handler function call.\n" << *ii << "\n";
                         possible_matches->erase(bb);
                         return new std::pair<UsageType, Instruction*>(DirectHandlerCall, inst);
                     }
@@ -491,6 +423,11 @@ std::pair<UsageType, Instruction*>* findUsageInstruction(BasicBlock* bb, std::un
 }
 
 
+/**
+ Analyze the `receive` instruction, find the instruction where the received value is used.
+
+ @param ii The invocation of the recv() function.
+ */
 void analyzeReceiver(InvokeInst* ii) {
     // initialize the data structures for the analysis
     std::unordered_set<Value*> been_there {};
