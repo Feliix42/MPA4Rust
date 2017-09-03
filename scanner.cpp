@@ -248,9 +248,37 @@ StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set
 
 
 /**
+ Analyze a `send` instruction and try to find out, which value is transmitted over the communication edge.
+ This is the central entry point for all sender-analysis matters.
+
+ @param ii The invocation of the `send` instruction.
+ */
+void analyzeSender(InvokeInst* ii) {
+    // start analysis at the value provided as argument to send()
+    Value* a = ii->getArgOperand(ii->getNumArgOperands() - 1);
+    outs() << "[DEBUG] Identified argument " << *a << "\n";
+
+    std::unordered_set<Value*> been_there {};
+    // start the recursive search for an assignment
+    StoreInst* si = getRelevantStoreFromValue(a, nullptr, &been_there);
+
+    if (si == nullptr)
+        outs() << "[NOTE] No store instruction found!\n" \
+        << "        Module: " << ii->getModule()->getName() << "\n" \
+        << "        Instruction: " << *ii << "\n";
+    else {
+        if (ConstantInt* assigned_number = dyn_cast<ConstantInt>(si->getValueOperand()))
+            outs() << "[SUCCESS] Found a viable assignment: " << assigned_number->getValue() << " is assigned.\n";
+        else
+            errs() << "[ERR] Could only find: " << *si << "\n";  // TODO: Can be removed since this is checked in the function now
+    }
+}
+
+
+/**
  Recursively iterates over the value produced by the receive instruction and the subsequent values
  produced by bitcasts, load and store instructions, etc.
- 
+
  This function aims to find possible value unwraps (as every (try_)recv() returns a Result type) and
  the concrete use of the value in a control flow decision (such as match statements and function
  invocations. It collects these possible matches in an unordered map provided as function argument.
@@ -429,6 +457,8 @@ std::pair<UsageType, Instruction*>* findUsageInstruction(BasicBlock* bb, std::un
 
 /**
  Analyze the `receive` instruction, find the instruction where the received value is used.
+ This is the wrapper around all receiver-analysis logic and can be called directly, providing
+ the receive() call in question.
 
  @param ii The invocation of the recv() function.
  */
@@ -502,21 +532,7 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
 
                             // for further analysis, ignore senders of type "()"
                             if (sends.front().type != "()") {
-                                Value* a = ii->getArgOperand(ii->getNumArgOperands() - 1);
-                                outs() << "[DEBUG] Identified argument " << *a << "\n";
-
-                                std::unordered_set<Value*> been_there {};
-                                StoreInst* si = getRelevantStoreFromValue(a, nullptr, &been_there);
-                                if (si == nullptr)
-                                    outs() << "[ERROR] No store instruction found!\n" \
-                                           << "        Module: " << ii->getModule()->getName() << "\n" \
-                                           << "        Instruction: " << *ii << "\n";
-                                else {
-                                    if (ConstantInt* assigned_number = dyn_cast<ConstantInt>(si->getValueOperand()))
-                                        outs() << "[SUCCESS] Found a viable assignment: " << assigned_number->getValue() << " is assigned.\n";
-                                    else
-                                        errs() << "[ERR] Could only find: " << *si << "\n";  // TODO: Can be removed since this is checked in the function now
-                                }
+                                analyzeSender(ii);
                             }
                         }
                         else if (isRecv(demangled_name)) {
