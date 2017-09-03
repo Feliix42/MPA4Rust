@@ -163,17 +163,10 @@ StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set
     else
         return nullptr;
 
-//    outs() << "Inspect: " << *val << "\n" << val->getNumUses() << " uses:\n";
-//    for (User* u: val->users()) {
-//        outs() << *u << "\n";
-//    }
-//    outs() << "\n";
-
-
-    // hacky workarounds:
     // emit information about detected phi nodes for debugging purposes
     if (PHINode* pn = dyn_cast<PHINode>(val))
-        outs() << "[PHI] Found a phi node!\n    " << pn->getModule()->getName() << "\n";
+        // this is just a side note since PHI node encounters are really rare (only one in early tests)
+        outs() << "[DEBUG] Found a phi node!\n    " << pn->getModule()->getName() << "\n";
 
     if (BitCastInst* bi = dyn_cast<BitCastInst>(val)) {
         StoreInst* deep_store_inst = getRelevantStoreFromValue(bi->getOperand(0), val, been_there);
@@ -188,13 +181,11 @@ StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set
 
     for (User* u: val->users()) {
         if (LoadInst* li = dyn_cast<LoadInst>(u)) {
-//            li->dump();
             StoreInst* deep_store_inst = getRelevantStoreFromValue(li->getPointerOperand(), val, been_there);
             if (deep_store_inst != nullptr)
                 return deep_store_inst;
         }
         if (StoreInst* si = dyn_cast<StoreInst>(u)) {
-//            si->dump();
             // we are done after having found a constant assignment
             if (isa<ConstantInt>(si->getValueOperand()))
                 return si;
@@ -205,7 +196,7 @@ StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set
             }
         }
         if (BitCastInst* bi = dyn_cast<BitCastInst>(u)) {
-//            bi->dump();
+            // the found use is either result of a bitcast or used in one
             StoreInst* deep_store_inst;
             if (bi->getOperand(0) == val)
                 deep_store_inst = getRelevantStoreFromValue(bi, val, been_there);
@@ -218,12 +209,6 @@ StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set
         if (AllocaInst* ai = dyn_cast<AllocaInst>(u))
             continue;
         if (MemTransferInst* mi = dyn_cast<MemTransferInst>(u)) {
-//            mi->dump();
-//            // begin debug
-//            errs() << "Raw Source: " << *mi->getRawSource() << "\n";
-//            errs() << "Raw Dest: " << *mi->getRawDest() << "\n";
-//            // end
-
             StoreInst* deep_store_inst;
             if (mi->getRawDest() == val)
                 deep_store_inst = getRelevantStoreFromValue(mi->getRawSource(), val, been_there);
@@ -234,13 +219,11 @@ StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set
                 return deep_store_inst;
         }
         if (GetElementPtrInst* gi = dyn_cast<GetElementPtrInst>(u)) {
-//            gi->dump();
             StoreInst* deep_store_inst = getRelevantStoreFromValue(gi, val, been_there);
             if (deep_store_inst != nullptr)
                 return deep_store_inst;
         }
     }
-
 //    outs() << "[WARN] Unhandled value type: " << *val << "\n";
 
     return nullptr;
@@ -384,23 +367,27 @@ void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there, std:
  @param last_hit Tracks the last matched value fro mthe possible matches.
  @return The usage type and the corresponding instruction.
  */
-std::pair<UsageType, Instruction*>* findUsageInstruction(BasicBlock* bb, std::unordered_map<BasicBlock*, Instruction*>* possible_matches, bool valueUnwrapped, Instruction* last_hit) {
-//    outs() << "  Now checking: " << bb->getName() << "\n";
-    // stop when no instructions to check are left
-    if (possible_matches->size() == 0) {
-        outs() << "[WARN] All matches have been checked.\n";
+std::pair<UsageType, Instruction*>* findUsageInstruction(BasicBlock* bb, std::unordered_set<BasicBlock*> path_history, std::unordered_map<BasicBlock*, Instruction*>* possible_matches, bool valueUnwrapped, Instruction* last_hit) {
+    outs() << "  Now checking: " << bb->getName() << "\n";
+    // stop when no instructions to check are left or we are in a loop
+    if (possible_matches->size() == 0 || path_history.find(bb) != path_history.end()) {
+        outs() << "[WARN] All matches have been checked or detected loop.\n";
         if (valueUnwrapped)
             return new std::pair<UsageType, Instruction*>(UnwrappedDirectUse, last_hit);
         else
             return new std::pair<UsageType, Instruction*>(DirectUse, nullptr);
     }
 
+    // mark the node as "visited on the current path"
+    path_history.insert(bb);
+
     // TODO: Can Basic Blocks have 0 successors?
     if (BasicBlock* next_bb = bb->getSingleSuccessor()) {
         // if a basic block only has a single successor we can skip it as the relevant
         // BBs have 2+ successors (due to the nature of switch/invoke instructions)
         outs() << "    -> skipping to next BB\n";
-        return findUsageInstruction(next_bb, possible_matches, valueUnwrapped, last_hit);
+        outs() << "       (" << bb->getParent()->getName() << ")\n";
+        return findUsageInstruction(next_bb, path_history, possible_matches, valueUnwrapped, last_hit);
     }
     else {
         // we have to handle multiple successors
@@ -416,7 +403,7 @@ std::pair<UsageType, Instruction*>* findUsageInstruction(BasicBlock* bb, std::un
                 else {
 //                    outs() << " Is value unwrap. \n" << *inst << "\n";
                     possible_matches->erase(bb);
-                    return findUsageInstruction(si->getSuccessor(1), possible_matches, true, inst);
+                    return findUsageInstruction(si->getSuccessor(1), path_history, possible_matches, true, inst);
                 }
             }
             else if (InvokeInst* ii = dyn_cast<InvokeInst>(inst)) {
@@ -429,7 +416,7 @@ std::pair<UsageType, Instruction*>* findUsageInstruction(BasicBlock* bb, std::un
                     if (isResultUnwrap(ii)) {
 //                        outs() << " Is value unwrap. \n" << *ii << "\n";
                         possible_matches->erase(bb);
-                        return findUsageInstruction(ii->getSuccessor(0), possible_matches, true, inst);
+                        return findUsageInstruction(ii->getSuccessor(0), path_history, possible_matches, true, inst);
                     }
                     else {
 //                        outs() << " Is direct handler function call.\n" << *ii << "\n";
@@ -444,7 +431,7 @@ std::pair<UsageType, Instruction*>* findUsageInstruction(BasicBlock* bb, std::un
             // check every successor of the current basic block as we do not know what causes the split here
             std::pair<UsageType, Instruction*>* result = new std::pair<UsageType, Instruction*>(DirectUse, nullptr);
             for (BasicBlock* next_bb: bb->getTerminator()->successors()) {
-                std::pair<UsageType, Instruction*>* tmp_result = findUsageInstruction(next_bb, possible_matches, valueUnwrapped, last_hit);
+                std::pair<UsageType, Instruction*>* tmp_result = findUsageInstruction(next_bb, path_history, possible_matches, valueUnwrapped, last_hit);
                 if (tmp_result->first >= result->first)
                     result = tmp_result;
             }
@@ -468,7 +455,8 @@ void analyzeReceiver(InvokeInst* ii) {
     // this map will contain all possible unwrap/handle operations which will be sorted out later
     std::unordered_map<BasicBlock*, Instruction*> possible_matches {};
 
-    outs() << "[INFO] Analyzing receive Instruction...\n";
+    outs() << "[INFO] Analyzing receive Instruction...\n" \
+           << "       " << *ii << "\n";
 
     analyzeReceiveInst(ii, &been_there, &possible_matches);
 
@@ -476,7 +464,8 @@ void analyzeReceiver(InvokeInst* ii) {
 
     // now sort out the previously filtered instructions by traversing the Control Flow Graph,
     // starting at the first Basic block after the `receive` function was called
-    std::pair<UsageType, Instruction*>* usage = findUsageInstruction(ii->getSuccessor(0), &possible_matches, false, nullptr);
+
+    std::pair<UsageType, Instruction*>* usage = findUsageInstruction(ii->getSuccessor(0), {}, &possible_matches, false, nullptr);
 
     switch (usage->first) {
         case DirectUse:
