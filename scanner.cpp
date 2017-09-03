@@ -116,6 +116,9 @@ const char* getReceivedType(std::string struct_name) {
 
 
 bool isResultUnwrap(InvokeInst* ii) {
+    if (!ii->getCalledFunction() || !ii->getCalledFunction()->hasName())
+        return false;
+
     // first, demangle the function name
     int s;
     const char* demangled_name = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
@@ -271,16 +274,17 @@ void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there, std:
 
     // the current value is an invoke instruction (e.g. a `receive` call or an unwrap etc)
     if (InvokeInst* ii = dyn_cast<InvokeInst>(val)) {
-        // first, demangle the function name to be able to check what function we are looking at
-        int s;
-        const char* demangled_name = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
-        if (s != 0)
-            errs() << "[ERROR] Failed to demangle function name of " << ii->getName() << "\n";
-
-        if (isRecv(demangled_name))
-            // if the instruction is the receive (this is always true for the instruction we start with), follow the return value
-            if (ii->hasStructRetAttr())
-                analyzeReceiveInst(ii->getArgOperand(0), been_there, possible_matches);
+        if (ii->getCalledFunction()) {
+            // first, demangle the function name to be able to check what function we are looking at
+            int s;
+            const char* demangled_name = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
+            if (s != 0)
+                errs() << "[ERROR] Failed to demangle function name of " << ii->getName() << "\n";
+            else if (isRecv(demangled_name))
+                // if the instruction is the receive (this is always true for the instruction we start with), follow the return value
+                if (ii->hasStructRetAttr())
+                    analyzeReceiveInst(ii->getArgOperand(0), been_there, possible_matches);
+        }
     }
     else if (BitCastInst* bi = dyn_cast<BitCastInst>(val))
         analyzeReceiveInst(bi->getOperand(0), been_there, possible_matches);
