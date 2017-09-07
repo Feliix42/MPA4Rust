@@ -23,6 +23,6 @@
 
 
 long long analyzeSender(llvm::InvokeInst* ii);
-void analyzeReceiver(llvm::InvokeInst* ii);
+std::pair<UsageType, llvm::Instruction*>* analyzeReceiver(llvm::InvokeInst* ii);
 
 #endif /* analysis_hpp */

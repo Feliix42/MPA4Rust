@@ -336,7 +336,7 @@ std::pair<UsageType, Instruction*>* findUsageInstruction(BasicBlock* bb, std::un
 
  @param ii The invocation of the recv() function.
  */
-void analyzeReceiver(InvokeInst* ii) {
+std::pair<UsageType, Instruction*>* analyzeReceiver(InvokeInst* ii) {
     // initialize the data structures for the analysis
     std::unordered_set<Value*> been_there {};
     // this map will contain all possible unwrap/handle operations which will be sorted out later
@@ -371,4 +371,6 @@ void analyzeReceiver(InvokeInst* ii) {
             outs() << "[INFO] Received value is unwrapped, control-flow branches here:\n" << *usage->second << "\n";
             break;
     }
+
+    return usage;
 }

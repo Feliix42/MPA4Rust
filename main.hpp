@@ -23,5 +23,6 @@
 #include "scanner.hpp"
 #include "matching.hpp"
 #include "visualizer.hpp"
+#include "analysis.hpp"
 
 #endif /* main_hpp */

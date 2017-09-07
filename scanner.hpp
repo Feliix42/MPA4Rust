@@ -29,9 +29,6 @@
 #include "properties.hpp"
 
 
-// tmp
-#include "analysis.hpp"
-
 // function definitions
 std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> scan_modules(std::forward_list<std::unique_ptr<llvm::Module>>& modules, int thread_no);
 

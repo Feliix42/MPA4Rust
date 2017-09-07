@@ -37,11 +37,9 @@ std::forward_list<std::string> scan_directory(const fs::path& root) {
 
 int main(int argc, char** argv) {
     // set up the command line argument parser; hide automatically included options
-
     cl::HideUnrelatedOptions(AnalyzerCategory);
     cl::ParseCommandLineOptions(argc, argv);
 
-    // TODO (feliix42): Validate Arguments
     if (ThreadCount < 1)
         ThreadCount = 1;
 
@@ -102,13 +100,34 @@ int main(int argc, char** argv) {
     std::tie(sends, recvs) = scan_modules(module_list, ThreadCount);
 
 
-    // start the analysis
+    // match senders and receivers
     outs() << "[INFO] Starting Analysis...\n";
     std::forward_list<std::pair<MessagingNode*, MessagingNode*>> node_pairs = analyzeNodes(sends, recvs);
 
     if (VerboseOutput)
         for (std::pair<MessagingNode*, MessagingNode*> pair: node_pairs)
             std::cout << "[matched] " << pair.first->type << " --> " << pair.second->type << std::endl;
+
+    // perform the sender analysis
+    for (MessagingNode send: sends) {
+        // for further analysis, ignore senders of type "()"
+        if (send.type != "()") {
+            long long sent_val = analyzeSender(send.instr);
+            if (sent_val != -1) {
+                outs() << "[Got!] Found assignment of " << sent_val << "\n";
+            } else {
+                outs() << "[Miss!] Could not find assignment. Type: " << sends.front().type << "\n";
+            }
+            send.assignment = sent_val;
+        }
+    }
+
+    // perform the receiver analysis
+    for (MessagingNode recv: recvs) {
+        // perform the receiver-side analysis
+        if (recv.type != "()")
+            recv.usage = analyzeReceiver(recv.instr);
+    }
 
     visualize(&node_pairs, OutputPath);
     return 0;

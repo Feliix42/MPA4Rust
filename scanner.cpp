@@ -30,19 +30,9 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
 
                             // ignore any failures when extracting the types by simply skipping the value
                             if (const char* sent_type = getSentType(std::move(struct_name)))
-                                sends.push_front(MessagingNode {ii, sent_type, getNamespace(&func)});
+                                sends.push_front(MessagingNode {ii, sent_type, getNamespace(&func), .assignment = -1});
                             else
                                 continue;
-
-                            // for further analysis, ignore senders of type "()"
-                            if (sends.front().type != "()") {
-                                long long sent_val = analyzeSender(ii);
-                                if (sent_val != -1) {
-                                    outs() << "[Got!] Found assignment of " << sent_val << "\n";
-                                } else {
-                                    outs() << "[Miss!] Could not find assignment. Type: " << sends.front().type << "\n";
-                                }
-                            }
                         }
                         else if (isRecv(demangled_name)) {
                             // functionality similar to the branch above
@@ -53,14 +43,9 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                                 struct_name = cast<PointerType>(ii->getArgOperand(0)->getType())->getElementType()->getStructName().str();
 
                             if (const char* recv_type = getReceivedType(std::move(struct_name)))
-                                recvs.push_front(MessagingNode {ii, recv_type, getNamespace(&func)});
+                                recvs.push_front(MessagingNode {ii, recv_type, getNamespace(&func), .usage = nullptr});
                             else
                                 continue;
-
-                            // perform the receiver-side analysis
-                            if (recvs.front().type != "()") {
-                                analyzeReceiver(ii);
-                            }
                         }
                     }
 
