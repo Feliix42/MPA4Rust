@@ -10,8 +10,7 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
     // Iterate through all functions through all basic blocks over every instruction within the modules
     for (Function& func: module->getFunctionList())
         for (BasicBlock& bb: func.getBasicBlockList())
-            for (Instruction& instr: bb.getInstList())
-                if (InvokeInst* ii = dyn_cast<InvokeInst>(&instr))
+                if (InvokeInst* ii = dyn_cast<InvokeInst>(bb.getTerminator()))
                     // check if it's an direct function invocation that has a name
                     if (ii->getCalledFunction() && ii->getCalledFunction()->hasName()) {
                         // compare the demangled function name to find out whether it's a send or recv
