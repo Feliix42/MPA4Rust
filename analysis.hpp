@@ -1,10 +1,7 @@
-#ifndef scanner_hpp
-#define scanner_hpp
+#ifndef analysis_hpp
+#define analysis_hpp
 
-#include <tuple>
-#include <forward_list>
 #include <unordered_set>
-#include <stack>
 
 // just for io stuff
 #include <iostream>
@@ -18,21 +15,14 @@
 
 // MemoryTransfer Instructions (like memcpy etc)
 #include "llvm/IR/IntrinsicInst.h"
-
 // name demangling
 #include "llvm/Demangle/Demangle.h"
-
-//Debug Information and Metadata
-#include "llvm/IR/DebugInfoMetadata.h"
 
 #include "types.hpp"
 #include "properties.hpp"
 
 
-// tmp
-#include "analysis.hpp"
+long long analyzeSender(llvm::InvokeInst* ii);
+void analyzeReceiver(llvm::InvokeInst* ii);
 
-// function definitions
-std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> scan_modules(std::forward_list<std::unique_ptr<llvm::Module>>& modules, int thread_no);
-
-#endif /* scanner_hpp */
+#endif /* analysis_hpp */
