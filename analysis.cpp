@@ -165,10 +165,6 @@ void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there, std:
 
     // follow the instruction types
     // identify and handle unwrap operations!
-    //    outs() << "[A-RECV] Current value: " << *val << "\n" \
-    //           << "    -> Users: \n";
-    //    for (User* u: val->users())
-    //        outs() << "        " << *u << "\n";
 
     // the current value is an invoke instruction (e.g. a `receive` call or an unwrap etc)
     if (InvokeInst* ii = dyn_cast<InvokeInst>(val)) {
@@ -176,11 +172,8 @@ void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there, std:
             // first, demangle the function name to be able to check what function we are looking at
             int s;
             const char* demangled_name = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
-            if (s != 0)
-                outs() << "[ERROR] Failed to demangle function name of " << ii->getName() << "\n";
-            else if (isRecv(demangled_name))
-                // if the instruction is the receive (this is always true for the instruction we start with), follow the return value
-                if (ii->hasStructRetAttr())
+            if (s == 0 && isRecv(demangled_name) && ii->hasStructRetAttr())
+                // if the instruction is the receive (this is always true for the instruction we start with), follow the return
                     analyzeReceiveInst(ii->getArgOperand(0), been_there, possible_matches);
         }
     }

@@ -22,9 +22,6 @@
 // name demangling
 #include "llvm/Demangle/Demangle.h"
 
-//Debug Information and Metadata
-#include "llvm/IR/DebugInfoMetadata.h"
-
 #include "types.hpp"
 #include "properties.hpp"
 

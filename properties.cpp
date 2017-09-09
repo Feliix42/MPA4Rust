@@ -119,6 +119,11 @@ const char* getReceivedType(std::string struct_name) {
 //  --> return the thread names (?) or sth like that as namespace(s)
 //  --> return a list!
 // TODO: Find cross-module stuff
-std::string getNamespace(const Function* func) {
-    return func->getParent()->getName().str();
+std::string getNamespace(const InvokeInst* ii) {
+    // This is just a fallback option.
+    // If the compiler output is not optimized, this information is available.
+    if (!ii->getDebugLoc())
+        return ii->getModule()->getName().str();
+
+    return ii->getDebugLoc()->getFilename().str();
 }

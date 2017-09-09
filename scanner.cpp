@@ -30,7 +30,7 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
 
                             // ignore any failures when extracting the types by simply skipping the value
                             if (const char* sent_type = getSentType(std::move(struct_name)))
-                                sends.push_front(MessagingNode {ii, sent_type, getNamespace(&func), .assignment = -1});
+                                sends.push_front(MessagingNode {ii, sent_type, getNamespace(ii), .assignment = -1});
                             else
                                 continue;
                         }
@@ -43,7 +43,7 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                                 struct_name = cast<PointerType>(ii->getArgOperand(0)->getType())->getElementType()->getStructName().str();
 
                             if (const char* recv_type = getReceivedType(std::move(struct_name)))
-                                recvs.push_front(MessagingNode {ii, recv_type, getNamespace(&func), .usage = nullptr});
+                                recvs.push_front(MessagingNode {ii, recv_type, getNamespace(ii), .usage = nullptr});
                             else
                                 continue;
                         }
