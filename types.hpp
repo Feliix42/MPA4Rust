@@ -25,7 +25,8 @@ struct MessagingNode {
 
 };
 
-typedef std::unordered_map<std::string, std::forward_list<std::pair<std::string, std::string>>> MessageMap;
+typedef std::unordered_map<std::string, std::forward_list<std::pair<MessagingNode*, MessagingNode*>>> MessageMap;
+
 
 
 #endif /* types_hpp */

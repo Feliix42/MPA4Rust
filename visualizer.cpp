@@ -4,13 +4,14 @@ using namespace llvm;
 
 MessageMap buildMessageMap(const std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* node_pairs) {
     MessageMap mmap = MessageMap();
-    for (std::pair<MessagingNode*, MessagingNode*> pair: *node_pairs) {
-        std::string sender_module = pair.first->nspace;
-        std::string receiver_module = pair.second->nspace;
 
-        mmap[sender_module].push_front(std::make_pair(receiver_module, pair.first->type));
-        if (mmap.find(receiver_module) == mmap.end())
-            mmap.insert(std::make_pair(receiver_module, std::forward_list<std::pair<std::string, std::string>>::forward_list()));
+    for (std::pair<MessagingNode*, MessagingNode*> pair: *node_pairs) {
+        mmap[pair.first->nspace].push_front(pair);
+
+        // if a node is never sending anything and just receiving, we risk having no information about it in the graph
+        //  -> therefore, for every receiver an empty node is inserted
+        if (mmap.find(pair.second->nspace) == mmap.end())
+            mmap.insert(std::make_pair(pair.second->nspace, std::forward_list<std::pair<MessagingNode*, MessagingNode*>>::forward_list()));
     }
 
     return mmap;
@@ -43,14 +44,20 @@ void visualize(const std::forward_list<std::pair<MessagingNode*, MessagingNode*>
         graph_file << "digraph \"Generated Message Graph\" {" << std::endl \
         << "\tlabel=\"Generated Message Graph\";" << std::endl << std::endl;
 
-        for (std::pair<std::string, std::forward_list<std::pair<std::string, std::string>>> item: mmap) {
+        for (std::pair<std::string, std::forward_list<std::pair<MessagingNode*, MessagingNode*>>> item: mmap) {
             std::string nodename = getNodeName(item.first);
             // TODO: might need to insert manual linebreaks...
             graph_file << "\t" << nodename << " [shape=box,label=\"" << item.first << "\"]" << std::endl;
 
-            for (std::pair<std::string, std::string> connection: item.second) {
-                graph_file << "\t" << nodename << " -> " << getNodeName(connection.first) \
-                << " [label = \"" << connection.second << "\"];" << std::endl;
+            for (std::pair<MessagingNode*, MessagingNode*> connection: item.second) {
+                graph_file << "\t" << nodename << " -> " << getNodeName(connection.second->nspace) \
+                << " [label = \"" << connection.first->type;
+                if (connection.first->assignment != -1)
+                    graph_file << ": " << connection.first->assignment;
+                graph_file << "\\n Receive at: " << connection.second->instr->getDebugLoc()->getLine();
+                if (connection.second->usage)
+                    graph_file << "\\n Handled at Line " << connection.second->usage->second->getDebugLoc()->getLine();
+                graph_file << "\"];" << std::endl;
             }
         }
 

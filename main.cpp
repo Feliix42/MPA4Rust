@@ -91,9 +91,6 @@ int main(int argc, char** argv) {
         }
     }
 
-    // TODO: Maybe rewrite as LLVM Pass?
-    //       Implement scanning (and matching) --> Threading?
-
     std::cout << "[INFO] Scanning modules for sends/recvs..." << std::endl;
 
     std::forward_list<MessagingNode> sends, recvs;
@@ -109,21 +106,21 @@ int main(int argc, char** argv) {
             std::cout << "[matched] " << pair.first->type << " --> " << pair.second->type << std::endl;
 
     // perform the sender analysis
-    for (MessagingNode send: sends) {
+    for (MessagingNode& send: sends) {
         // for further analysis, ignore senders of type "()"
         if (send.type != "()") {
             long long sent_val = analyzeSender(send.instr);
             if (sent_val != -1) {
                 outs() << "[Got!] Found assignment of " << sent_val << "\n";
             } else {
-                outs() << "[Miss!] Could not find assignment. Type: " << sends.front().type << "\n";
+                outs() << "[Miss!] Could not find assignment. Type: " << send.type << "\n";
             }
             send.assignment = sent_val;
         }
     }
 
     // perform the receiver analysis
-    for (MessagingNode recv: recvs) {
+    for (MessagingNode& recv: recvs) {
         // perform the receiver-side analysis
         if (recv.type != "()")
             recv.usage = analyzeReceiver(recv.instr);

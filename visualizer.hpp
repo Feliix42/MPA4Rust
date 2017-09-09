@@ -8,6 +8,9 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
 
+//Debug Information and Metadata
+#include "llvm/IR/DebugInfoMetadata.h"
+
 #include "types.hpp"
 
 // Function definitions
