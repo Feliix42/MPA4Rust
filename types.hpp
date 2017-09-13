@@ -7,6 +7,7 @@
 #include "llvm/IR/Instructions.h"
 
 enum UsageType {
+    Unchecked,                  ///< This node was not checked.
     DirectUse,                  ///< The received value is being used directly in the function, no unwrap involved.
     DirectHandlerCall,          ///< The value is passed directly into a handler function.
     UnwrappedDirectUse,         ///< The received value is unwrapped and used directly.
@@ -20,7 +21,7 @@ struct MessagingNode {
     std::string nspace;
     union {
         long long assignment;
-        std::pair<UsageType, llvm::Instruction*>* usage;
+        std::pair<UsageType, llvm::Instruction*> usage;
     };
 
 };

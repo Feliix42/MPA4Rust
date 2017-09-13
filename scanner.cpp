@@ -43,7 +43,7 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                                 struct_name = cast<PointerType>(ii->getArgOperand(0)->getType())->getElementType()->getStructName().str();
 
                             if (const char* recv_type = getReceivedType(std::move(struct_name)))
-                                recvs.push_front(MessagingNode {ii, recv_type, getNamespace(ii), .usage = nullptr});
+                                recvs.push_front(MessagingNode {ii, recv_type, getNamespace(ii), .usage = std::make_pair(Unchecked, (Instruction*) nullptr)});
                             else
                                 continue;
                         }

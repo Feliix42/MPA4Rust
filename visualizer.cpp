@@ -55,8 +55,8 @@ void visualize(const std::forward_list<std::pair<MessagingNode*, MessagingNode*>
                 if (connection.first->assignment != -1)
                     graph_file << ": " << connection.first->assignment;
                 graph_file << "\\n Receive at: " << connection.second->instr->getDebugLoc()->getLine();
-                if (connection.second->usage)
-                    graph_file << "\\n Handled at Line " << connection.second->usage->second->getDebugLoc()->getLine();
+                if (connection.second->usage.first != Unchecked && connection.second->usage.first != DirectUse)
+                    graph_file << "\\n Handled at Line " << connection.second->usage.second->getDebugLoc()->getLine();
                 graph_file << "\"];" << std::endl;
             }
         }
