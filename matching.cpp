@@ -2,11 +2,19 @@
 
 
 // TODO: make arguments const?
-std::forward_list<std::pair<MessagingNode*, MessagingNode*>> analyzeNodes(std::forward_list<MessagingNode>& sends, std::forward_list<MessagingNode>& recvs) {
+std::forward_list<std::pair<MessagingNode*, MessagingNode*>> analyzeNodes(std::forward_list<MessagingNode>& sends, std::forward_list<MessagingNode>& recvs, bool suppress_parentheses) {
     std::forward_list<std::pair<MessagingNode*, MessagingNode*>> matched {};
 
-    for (MessagingNode& send: sends)
+    for (MessagingNode& send: sends) {
+        if (suppress_parentheses) {
+            if (send.type == "()" || send.type.substr(0, 23) == "core::result::Result<()" || send.type.substr(0, 23) == "core::option::Option<()")
+                continue;
+        }
         for (MessagingNode& recv: recvs) {
+            if (suppress_parentheses) {
+                if (recv.type == "()" || recv.type.substr(0, 23) == "core::result::Result<()" || recv.type.substr(0, 23) == "core::option::Option<()")
+                    continue;
+            }
             // there are various options for matching here:
             //      - either the types have the same length and are of the same type, or
             //      - the two types are of different length and the program has to check whether
@@ -35,14 +43,15 @@ std::forward_list<std::pair<MessagingNode*, MessagingNode*>> analyzeNodes(std::f
                 }
             }
         }
+    }
 
     return matched;
 }
 
 
 // TODO: keep this?
-std::forward_list<std::pair<MessagingNode*, MessagingNode*>> analyzeNodes(std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>>& data) {
+std::forward_list<std::pair<MessagingNode*, MessagingNode*>> analyzeNodes(std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>>& data, bool suppress_parentheses) {
     std::forward_list<MessagingNode> sends, recvs;
     std::tie(sends, recvs) = data;
-    return analyzeNodes(sends, recvs);
+    return analyzeNodes(sends, recvs, suppress_parentheses);
 }

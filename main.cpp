@@ -6,14 +6,15 @@ namespace fs = ::boost::filesystem;
 
 cl::OptionCategory AnalyzerCategory("Runtime Options", "Options for manipulating the runtime options of the program.");
 cl::opt<std::string> IRPath(cl::Positional, cl::desc("<IR file or directory>"), cl::Required);
-cl::opt<int> ThreadCount("t", cl::desc("Number of threads to use for calculation"), cl::cat(AnalyzerCategory));
+cl::opt<int> ThreadCount("t", cl::desc("Number of threads to use for calculation (currently not working)"), cl::cat(AnalyzerCategory));
 cl::opt<bool> VerboseOutput("v", cl::desc("Turn on verbose mode"), cl::cat(AnalyzerCategory));
 cl::opt<std::string> OutputPath("o", cl::desc("Optionally specify an output path for the graph"), cl::cat(AnalyzerCategory), cl::init("message_graph.dot"));
+cl::opt<bool> SuppressParentheses("s", cl::desc("Suppress empty parentheses type from graph output."), cl::cat(AnalyzerCategory));
 
 
 std::forward_list<std::string> scan_directory(const fs::path& root) {
     std::forward_list<std::string> files = {};
-    
+
     if(!fs::exists(root) || !fs::is_directory(root)) {
         std::cerr << "[ERROR] Path is not a directory but directory traversal was issued." << std::endl;
         return files;
@@ -21,7 +22,7 @@ std::forward_list<std::string> scan_directory(const fs::path& root) {
 
     fs::recursive_directory_iterator it(root);
     fs::recursive_directory_iterator endit;
-    
+
     while(it != endit) {
         if(fs::is_regular_file(*it) && it->path().extension() == ".ll") {
             if (VerboseOutput)
@@ -99,7 +100,7 @@ int main(int argc, char** argv) {
 
     // match senders and receivers
     outs() << "[INFO] Starting Analysis...\n";
-    std::forward_list<std::pair<MessagingNode*, MessagingNode*>> node_pairs = analyzeNodes(sends, recvs);
+    std::forward_list<std::pair<MessagingNode*, MessagingNode*>> node_pairs = analyzeNodes(sends, recvs, SuppressParentheses);
 
     if (VerboseOutput)
         for (std::pair<MessagingNode*, MessagingNode*> pair: node_pairs)

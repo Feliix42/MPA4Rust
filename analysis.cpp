@@ -132,7 +132,6 @@ bool isResultUnwrap(InvokeInst* ii) {
     int s;
     const char* demangled_name = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
     if (s != 0) {
-        errs() << "[ERROR] Failed to demangle function name of " << ii->getName() << "\n";
         return false;
     }
 
