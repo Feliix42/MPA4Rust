@@ -10,11 +10,18 @@
 //Debug Information and Metadata
 #include "llvm/IR/DebugInfoMetadata.h"
 
+// name demangling
+#include "llvm/Demangle/Demangle.h"
+
+#include "types.hpp"
+
 bool isSend(std::string demangled_invoke);
+bool isSend(llvm::InvokeInst* ii);
 const char* getSentType(std::string struct_name);
 
 bool isRecv(std::string demangled_invoke);
 const char* getReceivedType(std::string struct_name);
+
 std::string getNamespace(const llvm::InvokeInst* ii);
 
 #endif /* properties_hpp */

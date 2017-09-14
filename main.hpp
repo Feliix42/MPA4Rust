@@ -24,5 +24,6 @@
 #include "matching.hpp"
 #include "visualizer.hpp"
 #include "analysis.hpp"
+#include "analysisguide.hpp"
 
 #endif /* main_hpp */

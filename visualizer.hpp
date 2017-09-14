@@ -14,6 +14,7 @@
 #include "types.hpp"
 
 // Function definitions
+MessageMap buildMessageMap(const std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* node_pairs);
 void visualize(const std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* node_pairs, std::string output_path);
 
 #endif /* visualizer_hpp */

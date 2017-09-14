@@ -29,6 +29,38 @@ bool isSend(std::string demangled_invoke) {
 }
 
 
+bool isSend(InvokeInst* ii) {
+    if (!ii->getCalledFunction() || !ii->getCalledFunction()->hasName())
+        return false;
+
+    std::forward_list<std::string> sends {"$LT$std..sync..mpsc..Sender$LT$T$GT$$GT$::send::", \
+        "$LT$ipc_channel..ipc..IpcSender$LT$T$GT$$GT$::send::"};
+
+    // first, demangle the function name
+    int s;
+    const char* demangled = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
+    if (s != 0) {
+        return false;
+    }
+
+    std::string demangled_invoke = demangled;
+    for (std::string send_instr: sends) {
+        unsigned long position = demangled_invoke.find(send_instr);
+        if (position != std::string::npos) {
+            // sometimes, a closure is called within the send/recv
+            // -> to avoid wrong matches, check the suffix of the match for another namespace
+            std::string suffix = demangled_invoke.substr(position + send_instr.size(), demangled_invoke.size());
+            if (suffix.find("::") == std::string::npos)
+                return true;
+            else
+                return false;
+        }
+    }
+
+    return false;
+}
+
+
 /**
  Function that extracts the type of the message that is being sent over the channel
  by inspecting the type of the sender.

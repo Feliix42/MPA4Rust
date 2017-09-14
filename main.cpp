@@ -10,6 +10,7 @@ cl::opt<int> ThreadCount("t", cl::desc("Number of threads to use for calculation
 cl::opt<bool> VerboseOutput("v", cl::desc("Turn on verbose mode"), cl::cat(AnalyzerCategory));
 cl::opt<std::string> OutputPath("o", cl::desc("Optionally specify an output path for the graph"), cl::cat(AnalyzerCategory), cl::init("message_graph.dot"));
 cl::opt<bool> SuppressParentheses("s", cl::desc("Suppress empty parentheses type from graph output."), cl::cat(AnalyzerCategory));
+cl::opt<bool> GuidedAnalysis("g", cl::desc("Run a guided analysis on the graph."), cl::cat(AnalyzerCategory));
 
 
 std::forward_list<std::string> scan_directory(const fs::path& root) {
@@ -127,6 +128,10 @@ int main(int argc, char** argv) {
             recv.usage = analyzeReceiver(recv.instr);
     }
 
-    visualize(&node_pairs, OutputPath);
+
+    if (!GuidedAnalysis)
+        visualize(&node_pairs, OutputPath);
+    else
+        visualize(analyzeGuided(&node_pairs), OutputPath);
     return 0;
 }
