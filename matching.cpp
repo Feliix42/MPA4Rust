@@ -47,11 +47,3 @@ std::forward_list<std::pair<MessagingNode*, MessagingNode*>> analyzeNodes(std::f
 
     return matched;
 }
-
-
-// TODO: keep this?
-std::forward_list<std::pair<MessagingNode*, MessagingNode*>> analyzeNodes(std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>>& data, bool suppress_parentheses) {
-    std::forward_list<MessagingNode> sends, recvs;
-    std::tie(sends, recvs) = data;
-    return analyzeNodes(sends, recvs, suppress_parentheses);
-}

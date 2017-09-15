@@ -22,7 +22,7 @@
 #include "properties.hpp"
 
 
-long long analyzeSender(llvm::InvokeInst* ii);
-std::pair<UsageType, llvm::Instruction*> analyzeReceiver(llvm::InvokeInst* ii);
+long long analyzeSender(llvm::Instruction* ii);
+std::pair<UsageType, llvm::Instruction*> analyzeReceiver(llvm::Instruction* ii);
 
 #endif /* analysis_hpp */

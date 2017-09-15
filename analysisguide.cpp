@@ -43,8 +43,12 @@ void analyzeFunction(std::forward_list<std::pair<MessagingNode*, MessagingNode*>
     std::unordered_set<BasicBlock*> been_there {};
     std::queue<BasicBlock*> unvisited {};
 
-    if (entry_point != nullptr && fn == entry_point->second->instr->getFunction())
-        unvisited.push(entry_point->second->instr->getSuccessor(0));
+    if (entry_point != nullptr && fn == entry_point->second->instr->getFunction()) {
+        if (CallInst* ci = dyn_cast<CallInst>(entry_point->second->instr))
+            unvisited.push(ci->getParent());
+        else if (InvokeInst* ii = dyn_cast<InvokeInst>(entry_point->second->instr))
+            unvisited.push(ii->getSuccessor(0));
+    }
     else
         unvisited.push(&fn->getEntryBlock());
 
@@ -91,8 +95,17 @@ void analyzeFunction(std::forward_list<std::pair<MessagingNode*, MessagingNode*>
                 }
             }
             else if (CallInst* ci = dyn_cast<CallInst>(&inst)) {
-                // handle: check linkage (external?!) -> follow
-                if (ci->getCalledFunction() && ci->getCalledFunction()->getLinkage() > 0) {
+                if (isSend(ci)) {
+                    for (std::pair<MessagingNode*, MessagingNode*> node_pair: mmap->at(entry_point->second->nspace))
+                        // find `send` in message map
+                        if (node_pair.first->instr == ci) {
+                            // add edge - I don't break here to catch wrongly matched pairings as well.
+                            nodelist->push_front(node_pair);
+                            // analyze the recv
+                            analyzeFunction(nodelist, node_pair.second->instr->getFunction(), &node_pair, mmap, visited_fns);
+                        }
+                }
+                else if (ci->getCalledFunction() && ci->getCalledFunction()->getLinkage() > 0) {
                     analyzeFunction(nodelist, ci->getCalledFunction(), entry_point, mmap, visited_fns);
                 }
             }

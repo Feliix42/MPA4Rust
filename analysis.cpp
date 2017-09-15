@@ -92,20 +92,30 @@ StoreInst* getRelevantStoreFromValue(Value* val, Value* prev, std::unordered_set
  Analyze a `send` instruction and try to find out, which value is transmitted over the communication edge.
  This is the central entry point for all sender-analysis matters.
 
- @param ii The invocation of the `send` instruction.
+ @param inst The invocation of the `send` instruction.
  @return Returns the assigned constant.
  */
-long long analyzeSender(InvokeInst* ii) {
+long long analyzeSender(Instruction* inst) {
+    // senders can either be call of invoke instructions!
+
+    Value* a = nullptr;
     // start analysis at the value provided as argument to send()
-    Value* a = ii->getArgOperand(ii->getNumArgOperands() - 1);
-    outs() << "[DEBUG] Identified argument " << *a << "\n";
+    if (InvokeInst* ii = dyn_cast<InvokeInst>(inst))
+        a = ii->getArgOperand(ii->getNumArgOperands() - 1);
+    else if (CallInst* ci = dyn_cast<CallInst>(inst))
+        a = ci->getArgOperand(ci->getNumArgOperands() - 1);
+
+    if (!a)
+        return -1;
+
+    // outs() << "[DEBUG] Identified argument " << *a << "\n";
 
     std::unordered_set<Value*> been_there {};
     // start the recursive search for an assignment
     StoreInst* si = getRelevantStoreFromValue(a, nullptr, &been_there);
 
     if (si == nullptr) {
-        outs() << "[NOTE] No store instruction found!\n"; // \
+        // outs() << "[NOTE] No store instruction found!\n"; // \
         //        << "        Module: " << ii->getModule()->getName() << "\n" \
         //        << "        Instruction: " << *ii << "\n";
         return -1;
@@ -118,6 +128,8 @@ long long analyzeSender(InvokeInst* ii) {
             return -1;
         }
     }
+
+    return -1;
 }
 
 
@@ -131,6 +143,26 @@ bool isResultUnwrap(InvokeInst* ii) {
     // first, demangle the function name
     int s;
     const char* demangled_name = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
+    if (s != 0) {
+        return false;
+    }
+
+    std::string demangled_invoke = demangled_name;
+    unsigned long position = demangled_invoke.find("$LT$core..result..Result$LT$T$C$$u20$E$GT$$GT$::unwrap::");
+    if (position != std::string::npos)
+        return true;
+    else
+        return false;
+}
+
+
+bool isResultUnwrap(CallInst* ci) {
+    if (!ci->getCalledFunction() || !ci->getCalledFunction()->hasName())
+        return false;
+
+    // first, demangle the function name
+    int s;
+    const char* demangled_name = itaniumDemangle(ci->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
     if (s != 0) {
         return false;
     }
@@ -174,6 +206,16 @@ void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there, std:
             if (s == 0 && isRecv(demangled_name) && ii->hasStructRetAttr())
                 // if the instruction is the receive (this is always true for the instruction we start with), follow the return
                     analyzeReceiveInst(ii->getArgOperand(0), been_there, possible_matches);
+        }
+    }
+    else if (CallInst* ci = dyn_cast<CallInst>(val)) {
+        if (ci->getCalledFunction()) {
+            // first, demangle the function name to be able to check what function we are looking at
+            int s;
+            const char* demangled_name = itaniumDemangle(ci->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
+            if (s == 0 && isRecv(demangled_name) && ci->hasStructRetAttr())
+                // if the instruction is the receive (this is always true for the instruction we start with), follow the return
+                analyzeReceiveInst(ci->getArgOperand(0), been_there, possible_matches);
         }
     }
     else if (BitCastInst* bi = dyn_cast<BitCastInst>(val))
@@ -228,7 +270,24 @@ void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there, std:
                 //                outs() << "[INFO] Possible message handler detected: " << *ii << "\n";
                 //                outs() << "       -> marked current node as IOI.\n";
             }
-
+        }
+        else if (CallInst* ci = dyn_cast<CallInst>(u)) {
+            if (isResultUnwrap(ci)) {
+                //                outs() << "    -> marked current node as IOI.\n";
+                possible_matches->insert({ci->getParent(), ci});
+                if (ci->hasStructRetAttr()) {
+                    been_there->insert(ci);
+                    analyzeReceiveInst(ci->getArgOperand(0), been_there, possible_matches);
+                }
+                else
+                    analyzeReceiveInst(ci, been_there, possible_matches);
+            }
+            else if (been_there->find(ci) == been_there->end()){
+                been_there->insert(ci);
+                possible_matches->insert({ci->getParent(), ci});
+                //                outs() << "[INFO] Possible message handler detected: " << *ii << "\n";
+                //                outs() << "       -> marked current node as IOI.\n";
+            }
         }
     }
     // TODO: Add case for Optionals(?) and received result types, i.e. Receiver<Result<bool>>(?)
@@ -260,7 +319,7 @@ std::pair<UsageType, Instruction*> findUsageInstruction(BasicBlock* bb, std::uno
     // mark the node as "visited on the current path"
     path_history.insert(bb);
 
-    // TODO: Can Basic Blocks have 0 successors?
+    // FIXME: CallInsts can be here as well!
     if (BasicBlock* next_bb = bb->getSingleSuccessor()) {
         // if a basic block only has a single successor we can skip it as the relevant
         // BBs have 2+ successors (due to the nature of switch/invoke instructions)
@@ -326,26 +385,34 @@ std::pair<UsageType, Instruction*> findUsageInstruction(BasicBlock* bb, std::uno
  This is the wrapper around all receiver-analysis logic and can be called directly, providing
  the receive() call in question.
 
- @param ii The invocation of the recv() function.
+ @param inst The invocation of the recv() function.
  */
-std::pair<UsageType, Instruction*> analyzeReceiver(InvokeInst* ii) {
+std::pair<UsageType, Instruction*> analyzeReceiver(Instruction* inst) {
+    if (!isa<CallInst>(inst) && !isa<InvokeInst>(inst))
+        return std::pair<UsageType, Instruction*>();
+
     // initialize the data structures for the analysis
     std::unordered_set<Value*> been_there {};
     // this map will contain all possible unwrap/handle operations which will be sorted out later
     std::unordered_map<BasicBlock*, Instruction*> possible_matches {};
 
-    outs() << "[INFO] Analyzing receive Instruction...\n" \
-    << "       " << *ii << "\n";
+    // outs() << "[INFO] Analyzing receive Instruction...\n" \
+    // << "       " << *inst << "\n";
 
-    analyzeReceiveInst(ii, &been_there, &possible_matches);
+    analyzeReceiveInst(inst, &been_there, &possible_matches);
 
-    outs() << "[INFO] Finding the relevant usage...\n";
+    // outs() << "[INFO] Finding the relevant usage...\n";
 
     // now sort out the previously filtered instructions by traversing the Control Flow Graph,
     // starting at the first Basic block after the `receive` function was called
 
-    std::pair<UsageType, Instruction*> usage = findUsageInstruction(ii->getSuccessor(0), {}, &possible_matches, false, nullptr);
+    std::pair<UsageType, Instruction*> usage;
+    if (InvokeInst* ii = dyn_cast<InvokeInst>(inst))
+        usage = findUsageInstruction(ii->getSuccessor(0), {}, &possible_matches, false, nullptr);
+    else
+        usage = findUsageInstruction(inst->getParent(), {}, &possible_matches, false, nullptr);
 
+    /*
     switch (usage.first) {
         case Unchecked:
             outs() << "[WARN] Unchecked value!\n";
@@ -365,7 +432,7 @@ std::pair<UsageType, Instruction*> analyzeReceiver(InvokeInst* ii) {
         case UnwrappedToSwitch:
             outs() << "[INFO] Received value is unwrapped, control-flow branches here:\n" << *usage.second << "\n";
             break;
-    }
+    } */
 
     return usage;
 }

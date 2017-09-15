@@ -16,7 +16,7 @@ enum UsageType {
 };
 
 struct MessagingNode {
-    llvm::InvokeInst* instr;
+    llvm::Instruction* instr;
     std::string type;
     std::string nspace;
     union {

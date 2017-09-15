@@ -43,21 +43,25 @@ bool isSend(InvokeInst* ii) {
         return false;
     }
 
-    std::string demangled_invoke = demangled;
-    for (std::string send_instr: sends) {
-        unsigned long position = demangled_invoke.find(send_instr);
-        if (position != std::string::npos) {
-            // sometimes, a closure is called within the send/recv
-            // -> to avoid wrong matches, check the suffix of the match for another namespace
-            std::string suffix = demangled_invoke.substr(position + send_instr.size(), demangled_invoke.size());
-            if (suffix.find("::") == std::string::npos)
-                return true;
-            else
-                return false;
-        }
+    return isSend(demangled);
+}
+
+
+bool isSend(CallInst* ci) {
+    if (!ci->getCalledFunction() || !ci->getCalledFunction()->hasName())
+        return false;
+
+    std::forward_list<std::string> sends {"$LT$std..sync..mpsc..Sender$LT$T$GT$$GT$::send::", \
+        "$LT$ipc_channel..ipc..IpcSender$LT$T$GT$$GT$::send::"};
+
+    // first, demangle the function name
+    int s;
+    const char* demangled = itaniumDemangle(ci->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
+    if (s != 0) {
+        return false;
     }
 
-    return false;
+    return isSend(demangled);
 }
 
 
@@ -151,11 +155,11 @@ const char* getReceivedType(std::string struct_name) {
 //  --> return the thread names (?) or sth like that as namespace(s)
 //  --> return a list!
 // TODO: Find cross-module stuff
-std::string getNamespace(const InvokeInst* ii) {
+std::string getNamespace(const Instruction* inst) {
     // This is just a fallback option.
     // If the compiler output is not optimized, this information is available.
-    if (!ii->getDebugLoc())
-        return ii->getModule()->getName().str();
+    if (!inst->getDebugLoc())
+        return inst->getModule()->getName().str();
 
-    return ii->getDebugLoc()->getFilename().str();
+    return inst->getDebugLoc()->getFilename().str();
 }

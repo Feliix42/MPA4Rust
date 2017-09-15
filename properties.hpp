@@ -17,11 +17,12 @@
 
 bool isSend(std::string demangled_invoke);
 bool isSend(llvm::InvokeInst* ii);
+bool isSend(llvm::CallInst* ci);
 const char* getSentType(std::string struct_name);
 
 bool isRecv(std::string demangled_invoke);
 const char* getReceivedType(std::string struct_name);
 
-std::string getNamespace(const llvm::InvokeInst* ii);
+std::string getNamespace(const llvm::Instruction* ii);
 
 #endif /* properties_hpp */
