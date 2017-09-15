@@ -21,6 +21,6 @@
 #include "visualizer.hpp"
 #include "properties.hpp"
 
-std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* analyzeGuided(const std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* node_pairs);
+std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* analyzeGuided(const std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* node_pairs, bool ignore_initial_value);
 
 #endif /* analysisguide_hpp */

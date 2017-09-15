@@ -100,7 +100,7 @@ void analyzeFunction(std::forward_list<std::pair<MessagingNode*, MessagingNode*>
     }
 }
 
-std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* analyzeGuided(const std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* node_pairs) {
+std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* analyzeGuided(const std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* node_pairs, bool ignore_initial_val) {
     outs() << "[INFO] Starting guided analysis...\n";
 
     // generate a message map to get a list of message pairs, sorted by the namespace they belong to.
@@ -150,10 +150,15 @@ std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* analyzeGuided(cons
 
     outs() << "[DEBUG] Message Properties:\n" \
            << "     > Type: " << chosen_send->first->type << "\n";
-    if (chosen_send->first->assignment != -1)
-        outs() << "     > Instance: " << chosen_send->first->assignment << "\n";
-    else
+    if (chosen_send->first->assignment == -1 || ignore_initial_val) {
         outs() << "     > Instance unknown.\n";
+
+        // let the user chose an instance
+        outs() << "Choose an message instance to proceed. ";
+        // TODO
+    }
+    else
+        outs() << "     > Instance: " << chosen_send->first->assignment << "\n";
 
     // let's start!
     std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* nodelist = new std::forward_list<std::pair<MessagingNode*, MessagingNode*>>();

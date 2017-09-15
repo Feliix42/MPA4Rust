@@ -11,6 +11,7 @@ cl::opt<bool> VerboseOutput("v", cl::desc("Turn on verbose mode"), cl::cat(Analy
 cl::opt<std::string> OutputPath("o", cl::desc("Optionally specify an output path for the graph"), cl::cat(AnalyzerCategory), cl::init("message_graph.dot"));
 cl::opt<bool> SuppressParentheses("s", cl::desc("Suppress empty parentheses type from graph output."), cl::cat(AnalyzerCategory));
 cl::opt<bool> GuidedAnalysis("g", cl::desc("Run a guided analysis on the graph."), cl::cat(AnalyzerCategory));
+cl::opt<bool> IgnoreInitialVal("i", cl::desc("Ignore the initially sent value during guided analysis."), cl::cat(AnalyzerCategory));
 
 
 std::forward_list<std::string> scan_directory(const fs::path& root) {
@@ -132,6 +133,6 @@ int main(int argc, char** argv) {
     if (!GuidedAnalysis)
         visualize(&node_pairs, OutputPath);
     else
-        visualize(analyzeGuided(&node_pairs), OutputPath);
+        visualize(analyzeGuided(&node_pairs, IgnoreInitialVal), OutputPath);
     return 0;
 }
