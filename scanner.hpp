@@ -5,6 +5,7 @@
 #include <forward_list>
 #include <unordered_set>
 #include <stack>
+#include <string>
 
 // just for io stuff
 #include <iostream>

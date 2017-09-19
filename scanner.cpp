@@ -43,8 +43,21 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                         else
                             struct_name = cast<PointerType>(ii->getArgOperand(0)->getType())->getElementType()->getStructName().str();
 
-                        if (const char* recv_type = getReceivedType(std::move(struct_name)))
-                            recvs.push_front(MessagingNode {ii, recv_type, getNamespace(ii), .usage = std::make_pair(Unchecked, (Instruction*) nullptr)});
+                        // select! instructions are special. They take the receiver as last argument ¯\_(ツ)_/¯
+                        if (struct_name == "std::sync::mpsc::select::Select")
+                            struct_name = cast<PointerType>(ii->getArgOperand(ii->getNumArgOperands() - 1)->getType())->getElementType()->getStructName().str();
+
+                        if (const char* recv_type = getReceivedType(std::move(struct_name))) {
+                            std::string type_received = recv_type;
+                            std::string nspace = getNamespace(ii);
+
+                            // ignore recvs from libstd/sync/mpsc/select.rs
+                            // selects are a (currently) unstable feature and a separate way to receive messages
+                            // these recvs are recognized separately, so we have to ignore them here explicitly
+                            if (nspace.find("libstd/sync/mpsc/select.rs") == std::string::npos) {
+                                recvs.push_front(MessagingNode {ii, type_received, nspace, .usage = std::make_pair(Unchecked, (Instruction*) nullptr)});
+                            }
+                        }
                         else
                             continue;
                     }
@@ -61,7 +74,6 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
 
                     // Instruction *is* sending something
                     if (isSend(demangled_name)) {
-                        // outs() << "[GOT] a send!\n";
                         // the argument to check is determined by whether the first argument is the return value or not
                         std::string struct_name;
                         if (ci->hasStructRetAttr())
@@ -76,7 +88,6 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                             continue;
                     }
                     else if (isRecv(demangled_name)) {
-                        // outs() << "[GOT] a recv!\n";
                         // functionality similar to the branch above
                         std::string struct_name;
                         if (ci->hasStructRetAttr())
@@ -84,8 +95,17 @@ std::pair<std::forward_list<MessagingNode>, std::forward_list<MessagingNode>> sc
                         else
                             struct_name = cast<PointerType>(ci->getArgOperand(0)->getType())->getElementType()->getStructName().str();
 
-                        if (const char* recv_type = getReceivedType(std::move(struct_name)))
-                            recvs.push_front(MessagingNode {ci, recv_type, getNamespace(ci), .usage = std::make_pair(Unchecked, (Instruction*) nullptr)});
+                        if (const char* recv_type = getReceivedType(std::move(struct_name))) {
+                            std::string type_received = recv_type;
+                            std::string nspace = getNamespace(ci);
+
+                            // ignore recvs from libstd/sync/mpsc/select.rs
+                            // selects are a (currently) unstable feature and a separate way to receive messages
+                            // these recvs are recognized separately, so we have to ignore them here explicitly
+                            if (nspace.find("libstd/sync/mpsc/select.rs") == std::string::npos) {
+                                recvs.push_front(MessagingNode {ci, type_received, nspace, .usage = std::make_pair(Unchecked, (Instruction*) nullptr)});
+                            }
+                        }
                         else
                             continue;
                     }

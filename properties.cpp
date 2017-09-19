@@ -99,11 +99,15 @@ bool isRecv(std::string demangled_invoke) {
     std::forward_list<std::string> recvs {"$LT$std..sync..mpsc..Receiver$LT$T$GT$$GT$::recv::", \
         "$LT$std..sync..mpsc..Receiver$LT$T$GT$$GT$::try_recv::", \
         "$LT$ipc_channel..ipc..IpcReceiver$LT$T$GT$$GT$::recv::", \
-        "$LT$ipc_channel..ipc..IpcReceiver$LT$T$GT$$GT$::try_recv::"};
+        "$LT$ipc_channel..ipc..IpcReceiver$LT$T$GT$$GT$::try_recv::", \
+        "std::sync::mpsc::select::Select::handle::"};
 
     for (std::string recv_instr: recvs) {
         unsigned long position = demangled_invoke.find(recv_instr);
         if (position != std::string::npos) {
+            if (recv_instr == "std::sync::mpsc::select::Select::handle::") {
+                return true;
+            }
             std::string suffix = demangled_invoke.substr(position + recv_instr.size(), demangled_invoke.size());
             if (suffix.find("::") == std::string::npos)
                 return true;
@@ -155,5 +159,5 @@ std::string getNamespace(const Instruction* inst) {
     if (!inst->getDebugLoc())
         return inst->getModule()->getName().str();
 
-    return inst->getDebugLoc()->getFilename().str();
+    return inst->getFunction()->getSubprogram()->getFilename().str(); // inst->getDebugLoc()->getFilename().str();
 }
