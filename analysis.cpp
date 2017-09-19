@@ -306,7 +306,7 @@ void analyzeReceiveInst(Value* val, std::unordered_set<Value*>* been_there, std:
  @return The usage type and the corresponding instruction.
  */
 std::pair<UsageType, Instruction*> findUsageInstruction(BasicBlock* bb, std::unordered_set<BasicBlock*> path_history, std::unordered_map<BasicBlock*, Instruction*>* possible_matches, bool valueUnwrapped, Instruction* last_hit) {
-    outs() << "  Now checking: " << bb->getName() << "\n";
+    // outs() << "  Now checking: " << bb->getName() << "\n";
     // stop when no instructions to check are left or we are in a loop
     if (possible_matches->size() == 0 || path_history.find(bb) != path_history.end()) {
         outs() << "[WARN] All matches have been checked or detected loop.\n";
@@ -323,8 +323,8 @@ std::pair<UsageType, Instruction*> findUsageInstruction(BasicBlock* bb, std::uno
     if (BasicBlock* next_bb = bb->getSingleSuccessor()) {
         // if a basic block only has a single successor we can skip it as the relevant
         // BBs have 2+ successors (due to the nature of switch/invoke instructions)
-        outs() << "    -> skipping to next BB\n";
-        outs() << "       (" << bb->getParent()->getName() << ")\n";
+        // outs() << "    -> skipping to next BB\n";
+        // outs() << "       (" << bb->getParent()->getName() << ")\n";
         return findUsageInstruction(next_bb, path_history, possible_matches, valueUnwrapped, last_hit);
     }
     else {

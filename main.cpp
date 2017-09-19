@@ -99,6 +99,11 @@ int main(int argc, char** argv) {
     std::forward_list<MessagingNode> sends, recvs;
     std::tie(sends, recvs) = scan_modules(module_list, ThreadCount);
 
+    // for (MessagingNode mn: sends)
+    //     outs() << "send: " << mn.type << " : " << mn.nspace << "\n  " << *mn.instr << "\n\n";
+
+    // for (MessagingNode mn: recvs)
+    //     outs() << "recv: " << mn.type << " : " << mn.nspace << "\n  " << *mn.instr << "\n\n";
 
     // match senders and receivers
     outs() << "[INFO] Starting Analysis...\n";

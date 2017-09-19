@@ -33,9 +33,6 @@ bool isSend(InvokeInst* ii) {
     if (!ii->getCalledFunction() || !ii->getCalledFunction()->hasName())
         return false;
 
-    std::forward_list<std::string> sends {"$LT$std..sync..mpsc..Sender$LT$T$GT$$GT$::send::", \
-        "$LT$ipc_channel..ipc..IpcSender$LT$T$GT$$GT$::send::"};
-
     // first, demangle the function name
     int s;
     const char* demangled = itaniumDemangle(ii->getCalledFunction()->getName().str().c_str(), nullptr, nullptr, &s);
@@ -50,9 +47,6 @@ bool isSend(InvokeInst* ii) {
 bool isSend(CallInst* ci) {
     if (!ci->getCalledFunction() || !ci->getCalledFunction()->hasName())
         return false;
-
-    std::forward_list<std::string> sends {"$LT$std..sync..mpsc..Sender$LT$T$GT$$GT$::send::", \
-        "$LT$ipc_channel..ipc..IpcSender$LT$T$GT$$GT$::send::"};
 
     // first, demangle the function name
     int s;
