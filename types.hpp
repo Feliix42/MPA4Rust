@@ -3,7 +3,9 @@
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <forward_list>
+#include <map>
 #include "llvm/IR/Instructions.h"
 
 enum UsageType {
@@ -27,6 +29,8 @@ struct MessagingNode {
 };
 
 typedef std::unordered_map<std::string, std::forward_list<std::pair<MessagingNode*, MessagingNode*>>> MessageMap;
+
+typedef std::unordered_map<std::string, std::map<long, std::unordered_set<MessagingNode*>>> NodeMap;
 
 
 
