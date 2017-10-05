@@ -1,0 +1,54 @@
+// importing algorithms is a breeze
+// use algo servo_algos::*;
+
+// import stateful functions using this:
+use sf browser::{IOCompositor, Constellation, RenderBackend, ScriptThread};
+
+// data type import
+use types::WindowEvent;
+
+
+algo resize(new_size: TypedSize2D<u32, DevicePixel>, compositor: IOCompositor, webrender: RenderBackend, constellation: Constellation) {
+    // internal state update in compositor
+    let (window_rect, frame_size, constellation_data) = compositor.on_resize_window_event(new_size);
+
+    // formerly sent to webrender-backend via api
+    webrender.set_window_parameters(frame_size, window_rect);
+
+    let (pipe, inactive_pipes, future_pipes) = constellation.handle_window_size_msg(constellation_data.top_level_browsing_context_id, constellation_data.data, constellation_data.size_type);
+
+    // resize every pipeline involved
+    if pipe.is_some() {
+        // requires additional reference to script in pipe...
+        pipe.unwrap().script.handle_resize(pipe.id, constellation_data.data, constellation_data.size_type);
+    }
+
+    if inactive_pipes.is_some() {
+        for pipe in inactive_pipes.unwrap() {
+            pipe.script.handle_resize_inactive_msg(pipe.id, constellation_data.data);
+        }
+    }
+
+    for pipe in future_pipes {
+        pipe.script.handle_resize(pipe.id, constellation_data.data, constellation_data.size_type);
+    }
+
+    // if let Some(resize_channel) = self.webdriver.resize_channel.take() {
+    //         let _ = resize_channel.send(new_size);
+    //     }
+
+    // TODO: Webdriver receiving WindowSizeData
+}
+
+algo main(compositor: IOCompositor, constellation: Constellation, render: RenderBackend) {
+    // central servo event loop
+    for req in requests {
+        // pattern matching using the rust-native match {} expression
+        match req {     // every request is of the same type!
+            WindowEvent::Resize(new_size)    => resize(new_size, compositor, render, constellation),
+            WindowEvent::LoadUrl(url_string) => loadUrl(url_string, compositor, constellation),
+            WindowEvent::Quit                => quit(compositor, constellation, render),
+            // ...
+        }
+    }
+}
