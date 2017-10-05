@@ -47,6 +47,9 @@ std::string getNodeName (std::string verbose_name) {
 
 
 void visualize(const std::forward_list<std::pair<MessagingNode*, MessagingNode*>>* node_pairs, std::string output_path) {
+    if (node_pairs == nullptr)
+        return;
+    
     // generate Message and node maps that contain information about the nodes and the messages exchanged
     MessageMap mmap = buildMessageMap(node_pairs);
     NodeMap nmap = buildNodeMap(node_pairs);
